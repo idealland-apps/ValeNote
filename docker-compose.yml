@@ -1,0 +1,12 @@
+services:
+  valenote:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - ./notes:/notes
+    environment:
+      - VALENOTE_SECRET_KEY=${VALENOTE_SECRET_KEY:-change-me-in-production}
+      - VALENOTE_MODE=release
+    restart: unless-stopped

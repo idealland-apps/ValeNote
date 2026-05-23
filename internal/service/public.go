@@ -1,0 +1,237 @@
+package service
+
+import (
+	"bytes"
+	"html/template"
+	"regexp"
+	"strings"
+
+	"github.com/anthropics/valenote/internal/config"
+	"github.com/anthropics/valenote/internal/model"
+	"gorm.io/gorm"
+)
+
+var reservedPaths = map[string]bool{
+	"api": true, "ws": true, "mcp": true, "auth": true,
+	"app": true, "assets": true, "settings": true, "admin": true,
+	"health": true,
+}
+
+type PublicService struct {
+	db          *gorm.DB
+	cfg         *config.Config
+	noteService *NoteService
+}
+
+func NewPublicService(db *gorm.DB, cfg *config.Config, noteService *NoteService) *PublicService {
+	return &PublicService{
+		db:          db,
+		cfg:         cfg,
+		noteService: noteService,
+	}
+}
+
+func (s *PublicService) GetPublicBasePath() string {
+	var setting model.Setting
+	if err := s.db.Where("key = ?", "public_base_path").First(&setting).Error; err != nil {
+		return "/public"
+	}
+	return setting.Value
+}
+
+func (s *PublicService) SetPublicBasePath(path string) error {
+	if err := ValidatePublicBasePath(path); err != nil {
+		return err
+	}
+
+	return s.db.Model(&model.Setting{}).
+		Where("key = ?", "public_base_path").
+		Update("value", path).Error
+}
+
+func ValidatePublicBasePath(path string) error {
+	path = strings.Trim(path, "/")
+	if path == "" {
+		return ErrInvalidPath
+	}
+	if reservedPaths[path] {
+		return ErrInvalidPath
+	}
+	if !regexp.MustCompile(`^[a-z0-9-]+$`).MatchString(path) {
+		return ErrInvalidPath
+	}
+	return nil
+}
+
+func (s *PublicService) IsNotebookPublic(name string) bool {
+	var notebook model.Notebook
+	if err := s.db.Where("name = ? AND is_public = ?", name, true).First(&notebook).Error; err != nil {
+		return false
+	}
+	return true
+}
+
+func (s *PublicService) SetNotebookPublic(name string, isPublic bool) error {
+	return s.db.Model(&model.Notebook{}).
+		Where("name = ?", name).
+		Update("is_public", isPublic).Error
+}
+
+func (s *PublicService) GetPublicNotebooks() ([]model.Notebook, error) {
+	var notebooks []model.Notebook
+	err := s.db.Where("is_public = ?", true).Find(&notebooks).Error
+	return notebooks, err
+}
+
+func (s *PublicService) GetPublicNote(notebookName, notePath string) (*Note, error) {
+	if !s.IsNotebookPublic(notebookName) {
+		return nil, ErrNoteNotFound
+	}
+
+	fullPath := notebookName
+	if notePath != "" {
+		fullPath = notebookName + "/" + notePath
+	}
+
+	return s.noteService.GetNote(fullPath)
+}
+
+func (s *PublicService) ListPublicNotes(notebookName string) ([]Note, error) {
+	if !s.IsNotebookPublic(notebookName) {
+		return nil, ErrNotebookNotFound
+	}
+
+	return s.noteService.ListNotes(notebookName, true)
+}
+
+func (s *PublicService) RenderNoteHTML(note *Note) (string, error) {
+	html := markdownToHTML(note.Content)
+
+	tmpl := template.Must(template.New("note").Parse(noteTemplate))
+	var buf bytes.Buffer
+	err := tmpl.Execute(&buf, map[string]interface{}{
+		"Title":   note.Title,
+		"Content": template.HTML(html),
+		"Path":    note.Path,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+func markdownToHTML(md string) string {
+	lines := strings.Split(md, "\n")
+	var html strings.Builder
+	inCodeBlock := false
+	inList := false
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "```") {
+			if inCodeBlock {
+				html.WriteString("</code></pre>\n")
+				inCodeBlock = false
+			} else {
+				html.WriteString("<pre><code>")
+				inCodeBlock = true
+			}
+			continue
+		}
+
+		if inCodeBlock {
+			html.WriteString(escapeHTML(line) + "\n")
+			continue
+		}
+
+		if strings.HasPrefix(line, "# ") {
+			html.WriteString("<h1>" + escapeHTML(line[2:]) + "</h1>\n")
+		} else if strings.HasPrefix(line, "## ") {
+			html.WriteString("<h2>" + escapeHTML(line[3:]) + "</h2>\n")
+		} else if strings.HasPrefix(line, "### ") {
+			html.WriteString("<h3>" + escapeHTML(line[4:]) + "</h3>\n")
+		} else if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
+			if !inList {
+				html.WriteString("<ul>\n")
+				inList = true
+			}
+			html.WriteString("<li>" + escapeHTML(line[2:]) + "</li>\n")
+		} else if strings.HasPrefix(line, "> ") {
+			html.WriteString("<blockquote>" + escapeHTML(line[2:]) + "</blockquote>\n")
+		} else if line == "" {
+			if inList {
+				html.WriteString("</ul>\n")
+				inList = false
+			}
+			html.WriteString("\n")
+		} else {
+			if inList {
+				html.WriteString("</ul>\n")
+				inList = false
+			}
+			processedLine := processInlineMarkdown(line)
+			html.WriteString("<p>" + processedLine + "</p>\n")
+		}
+	}
+
+	if inList {
+		html.WriteString("</ul>\n")
+	}
+
+	return html.String()
+}
+
+func processInlineMarkdown(line string) string {
+	line = regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllString(line, "<strong>$1</strong>")
+	line = regexp.MustCompile(`\*(.+?)\*`).ReplaceAllString(line, "<em>$1</em>")
+	line = regexp.MustCompile("`(.+?)`").ReplaceAllString(line, "<code>$1</code>")
+	line = regexp.MustCompile(`\[(.+?)\]\((.+?)\)`).ReplaceAllString(line, `<a href="$2">$1</a>`)
+	return line
+}
+
+func escapeHTML(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	return s
+}
+
+const noteTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - ValeNote</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2, h3 { margin-top: 1.5em; margin-bottom: 0.5em; }
+        h1 { font-size: 2em; border-bottom: 2px solid #eee; padding-bottom: 0.3em; }
+        h2 { font-size: 1.5em; }
+        h3 { font-size: 1.25em; }
+        p { margin: 1em 0; }
+        code { background: #f5f5f5; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
+        pre { background: #f5f5f5; padding: 1em; border-radius: 4px; overflow-x: auto; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid #ccc; padding-left: 1em; color: #666; margin: 1em 0; }
+        a { color: #1976d2; }
+        ul { padding-left: 1.5em; }
+        li { margin: 0.5em 0; }
+        footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #eee; color: #666; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <article>
+        {{.Content}}
+    </article>
+    <footer>
+        Published via ValeNote
+    </footer>
+</body>
+</html>`
