@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/anthropics/valenote/internal/service"
+	"github.com/idealland-apps/valenote/internal/service"
 	"github.com/gin-gonic/gin"
 )
 

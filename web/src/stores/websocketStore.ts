@@ -46,7 +46,13 @@ interface WebSocketState {
   clearConflict: () => void;
 }
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
+const getWsUrl = () => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws`;
+};
 
 export const useWebSocketStore = create<WebSocketState>((set, get) => ({
   socket: null,
@@ -61,7 +67,8 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       existingSocket.close();
     }
 
-    const socket = new WebSocket(`${WS_URL}?token=${token}`);
+    const wsUrl = getWsUrl();
+    const socket = new WebSocket(`${wsUrl}?token=${token}`);
 
     socket.onopen = () => {
       set({ isConnected: true });

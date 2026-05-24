@@ -4,7 +4,8 @@ import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLi
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
-import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language';
+import { syntaxHighlighting, HighlightStyle, bracketMatching } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import { Box, IconButton, Tooltip, Divider, Snackbar, Alert, CircularProgress } from '@mui/material';
 import {
   FormatBold,
@@ -58,6 +59,28 @@ const editorTheme = EditorView.theme({
     backgroundColor: '#b3d4fc !important',
   },
 });
+
+const markdownHighlightStyle = HighlightStyle.define([
+  { tag: tags.heading1, fontWeight: 'bold' },
+  { tag: tags.heading2, fontWeight: 'bold' },
+  { tag: tags.heading3, fontWeight: 'bold' },
+  { tag: tags.heading4, fontWeight: 'bold' },
+  { tag: tags.heading5, fontWeight: 'bold' },
+  { tag: tags.heading6, fontWeight: 'bold' },
+  { tag: tags.strong, fontWeight: 'bold' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.link, color: '#1976d2' },
+  { tag: tags.url, color: '#1976d2' },
+  { tag: tags.monospace, fontFamily: 'monospace', backgroundColor: '#f5f5f5' },
+  { tag: tags.quote, color: '#666', fontStyle: 'italic' },
+  { tag: tags.meta, color: '#808080' },
+  { tag: tags.processingInstruction, color: '#808080' },
+  { tag: tags.comment, color: '#808080' },
+  { tag: tags.keyword, color: '#07a' },
+  { tag: tags.string, color: '#690' },
+  { tag: tags.number, color: '#905' },
+]);
 
 export default function MarkdownEditor({ value, onChange, notePath }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -242,7 +265,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
           indentWithTab,
         ]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
-        syntaxHighlighting(defaultHighlightStyle),
+        syntaxHighlighting(markdownHighlightStyle),
         editorTheme,
         updateListener,
         handlePaste,

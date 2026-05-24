@@ -3,7 +3,7 @@ package service
 import (
 	"errors"
 
-	"github.com/anthropics/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/model"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )

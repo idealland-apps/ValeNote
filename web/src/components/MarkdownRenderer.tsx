@@ -152,8 +152,8 @@ function AuthenticatedLink({ href, children }: { href?: string; children?: React
   const handleClick = async (e: React.MouseEvent) => {
     if (!href) return;
 
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
-    if (!href.startsWith(apiBase + '/attachments/')) {
+    const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
+    if (!href.startsWith(apiBase + '/attachments/') && !href.startsWith('/api/v1/attachments/')) {
       return;
     }
 
@@ -186,8 +186,8 @@ function PublicLink({ href, children }: { href?: string; children?: React.ReactN
   const handleClick = async (e: React.MouseEvent) => {
     if (!href) return;
 
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
-    if (!href.startsWith(apiBase + '/public/')) {
+    const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
+    if (!href.startsWith(apiBase + '/public/') && !href.startsWith('/api/v1/public/')) {
       return;
     }
 
@@ -248,7 +248,7 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
   }, [notePath]);
 
   const transformUrl = useMemo(() => {
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+    const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
 
     return (url: string) => {
       const resolvedPath = resolveUrl(url);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Drawer, AppBar, Toolbar, Typography, IconButton, Divider, TextField, InputAdornment, CircularProgress } from '@mui/material';
-import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, SettingsApplications as AppSettingsIcon } from '@mui/icons-material';
+import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, Settings as AppSettingsIcon } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { useNoteStore } from '../stores/noteStore';
 import { useSiteStore } from '../stores/siteStore';

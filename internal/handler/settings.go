@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/anthropics/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -21,6 +21,7 @@ type SystemSettings struct {
 	VersionRetentionDays int    `json:"version_retention_days"`
 	VersionMaxCount      int    `json:"version_max_count"`
 	SiteName             string `json:"site_name"`
+	ShowPoweredBy        bool   `json:"show_powered_by"`
 }
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
@@ -28,6 +29,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 		VersionRetentionDays: 30,
 		VersionMaxCount:      100,
 		SiteName:             "ValeNote",
+		ShowPoweredBy:        true,
 	}
 
 	var s1 model.Setting
@@ -45,6 +47,10 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	var s3 model.Setting
 	if err := h.db.Where("key = ?", "site_name").First(&s3).Error; err == nil {
 		settings.SiteName = s3.Value
+	}
+	var s4 model.Setting
+	if err := h.db.Where("key = ?", "show_powered_by").First(&s4).Error; err == nil {
+		settings.ShowPoweredBy = s4.Value == "true"
 	}
 
 	c.JSON(http.StatusOK, settings)
@@ -70,6 +76,11 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 	h.upsertSetting("version_retention_days", strconv.Itoa(req.VersionRetentionDays))
 	h.upsertSetting("version_max_count", strconv.Itoa(req.VersionMaxCount))
 	h.upsertSetting("site_name", req.SiteName)
+	showPoweredBy := "false"
+	if req.ShowPoweredBy {
+		showPoweredBy = "true"
+	}
+	h.upsertSetting("show_powered_by", showPoweredBy)
 
 	c.JSON(http.StatusOK, req)
 }

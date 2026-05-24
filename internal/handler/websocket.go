@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/anthropics/valenote/internal/service"
+	"github.com/idealland-apps/valenote/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"

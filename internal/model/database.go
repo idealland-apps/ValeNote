@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/anthropics/valenote/internal/config"
+	"github.com/idealland-apps/valenote/internal/config"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -52,6 +52,7 @@ func initDefaultSettings(db *gorm.DB) {
 		"public_base_path":        "/public",
 		"version_retention_days":  "30",
 		"version_max_count":       "100",
+		"show_powered_by":         "true",
 	}
 
 	for key, value := range defaults {

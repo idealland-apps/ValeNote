@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/anthropics/valenote/internal/service"
+	"github.com/idealland-apps/valenote/internal/service"
 )
 
 type Server struct {

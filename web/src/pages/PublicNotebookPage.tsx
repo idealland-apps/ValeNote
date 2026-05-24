@@ -63,7 +63,7 @@ export default function PublicNotebookPage() {
   const { notebook, '*': subPath } = useParams<{ notebook: string; '*': string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { siteName } = useSiteStore();
+  const { siteName, showPoweredBy } = useSiteStore();
 
   const [tree, setTree] = useState<PublicTreeItem | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
@@ -220,11 +220,11 @@ export default function PublicNotebookPage() {
         sx={{
           width: DRAWER_WIDTH,
           flexShrink: 0,
-          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' },
+          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' },
         }}
       >
         <Toolbar />
-        <Box sx={{ overflow: 'auto', p: 1 }}>
+        <Box sx={{ overflow: 'auto', p: 1, flexGrow: 1 }}>
           {tree && (
             <SimpleTreeView
               selectedItems={selectedPath}
@@ -236,6 +236,21 @@ export default function PublicNotebookPage() {
             </SimpleTreeView>
           )}
         </Box>
+        {showPoweredBy && (
+          <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+            <Typography variant="caption" color="text.secondary">
+              Powered by{' '}
+              <Link
+                href="https://github.com/idealland-apps/ValeNote"
+                target="_blank"
+                rel="noopener noreferrer"
+                underline="hover"
+              >
+                ValeNote
+              </Link>
+            </Typography>
+          </Box>
+        )}
       </Drawer>
 
       <Box

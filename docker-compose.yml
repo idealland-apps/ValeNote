@@ -1,6 +1,9 @@
+version: "3.8"
+
 services:
   valenote:
-    build: .
+    image: bytetopia/valenote:latest
+    # build: .  # Uncomment to build locally instead of using Docker Hub image
     ports:
       - "8080:8080"
     volumes:

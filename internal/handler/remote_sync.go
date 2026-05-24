@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/anthropics/valenote/internal/model"
-	"github.com/anthropics/valenote/internal/service"
+	"github.com/idealland-apps/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/service"
 	"github.com/gin-gonic/gin"
 )
 

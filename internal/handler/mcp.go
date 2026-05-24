@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/anthropics/valenote/internal/mcp"
+	"github.com/idealland-apps/valenote/internal/mcp"
 	"github.com/gin-gonic/gin"
 )
 

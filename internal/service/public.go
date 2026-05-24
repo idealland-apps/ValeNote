@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/anthropics/valenote/internal/config"
-	"github.com/anthropics/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/config"
+	"github.com/idealland-apps/valenote/internal/model"
 	"gorm.io/gorm"
 )
 
@@ -424,3 +424,40 @@ const noteTemplate = `<!DOCTYPE html>
     </footer>
 </body>
 </html>`
+
+type PublicSettings struct {
+	SiteName      string `json:"site_name"`
+	ShowPoweredBy bool   `json:"show_powered_by"`
+}
+
+func (s *PublicService) GetPublicSettings() PublicSettings {
+	settings := PublicSettings{
+		SiteName:      "ValeNote",
+		ShowPoweredBy: true,
+	}
+
+	var siteName model.Setting
+	if err := s.db.Where("key = ?", "site_name").First(&siteName).Error; err == nil {
+		settings.SiteName = siteName.Value
+	}
+
+	var showPoweredBy model.Setting
+	if err := s.db.Where("key = ?", "show_powered_by").First(&showPoweredBy).Error; err == nil {
+		settings.ShowPoweredBy = showPoweredBy.Value == "true"
+	}
+
+	return settings
+}
+
+func (s *PublicService) SetShowPoweredBy(show bool) error {
+	value := "false"
+	if show {
+		value = "true"
+	}
+
+	var setting model.Setting
+	if err := s.db.Where("key = ?", "show_powered_by").First(&setting).Error; err != nil {
+		return s.db.Create(&model.Setting{Key: "show_powered_by", Value: value}).Error
+	}
+	return s.db.Model(&setting).Update("value", value).Error
+}

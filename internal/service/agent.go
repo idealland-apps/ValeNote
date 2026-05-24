@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/anthropics/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/model"
 	"gorm.io/gorm"
 )
 

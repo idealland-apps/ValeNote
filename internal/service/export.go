@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/anthropics/valenote/internal/config"
+	"github.com/idealland-apps/valenote/internal/config"
 )
 
 type ExportService struct {

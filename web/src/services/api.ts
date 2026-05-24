@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -144,7 +144,7 @@ const publicAxios = axios.create({
 
 export const publicApi = {
   listNotebooks: () => publicAxios.get<Notebook[]>('/public/notebooks'),
-  getSiteName: () => publicAxios.get<{ site_name: string }>('/public/site-name'),
+  getSettings: () => publicAxios.get<{ site_name: string; show_powered_by: boolean }>('/public/settings'),
   getTree: (notebook: string) => publicAxios.get<PublicTreeItem>(`/public/${notebook}/tree`),
   getNote: (notebook: string, path: string) => publicAxios.get<Note>(`/public/${notebook}/note/${path}`),
   getFolderNotes: (notebook: string, path?: string) => {

@@ -42,7 +42,7 @@ function MilkdownEditorInner({ value, onChange, notePath, onUploadError, onUploa
   }, [notePath, onUploadError, onUploading]);
 
   const insertImageMarkdown = useCallback((path: string) => {
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+    const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
     const imageUrl = `${apiBase}/attachments/${path}`;
     const markdown = `![](${imageUrl})`;
     onChange(value + '\n' + markdown);

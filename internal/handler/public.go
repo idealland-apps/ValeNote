@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/anthropics/valenote/internal/service"
+	"github.com/idealland-apps/valenote/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -181,4 +181,9 @@ func (h *PublicHandler) ServePublicAttachment(c *gin.Context) {
 
 	c.Header("Cache-Control", "public, max-age=31536000")
 	c.File(fullPath)
+}
+
+func (h *PublicHandler) GetPublicSettings(c *gin.Context) {
+	settings := h.publicService.GetPublicSettings()
+	c.JSON(http.StatusOK, settings)
 }

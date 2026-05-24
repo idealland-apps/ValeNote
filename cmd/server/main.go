@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anthropics/valenote/internal/config"
-	"github.com/anthropics/valenote/internal/handler"
-	"github.com/anthropics/valenote/internal/mcp"
-	"github.com/anthropics/valenote/internal/middleware"
-	"github.com/anthropics/valenote/internal/model"
-	"github.com/anthropics/valenote/internal/service"
+	"github.com/idealland-apps/valenote/internal/config"
+	"github.com/idealland-apps/valenote/internal/handler"
+	"github.com/idealland-apps/valenote/internal/mcp"
+	"github.com/idealland-apps/valenote/internal/middleware"
+	"github.com/idealland-apps/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -169,12 +169,21 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	r.GET("/api/v1/version", func(c *gin.Context) {
+		version := "dev"
+		if data, err := os.ReadFile("version.txt"); err == nil {
+			version = strings.TrimSpace(string(data))
+		}
+		c.JSON(200, gin.H{"version": version})
+	})
+
 	// Public API routes (no auth required)
 	publicAPI := r.Group("/api/v1/public")
 	{
 		publicAPI.GET("/notebooks", publicHandler.ListPublicNotebooks)
 		publicAPI.GET("/site-name", settingsHandler.GetSiteName)
 		publicAPI.GET("/base-path", publicHandler.GetPublicBasePath)
+		publicAPI.GET("/settings", publicHandler.GetPublicSettings)
 		publicAPI.GET("/:notebook/tree", publicHandler.GetNotebookTree)
 		publicAPI.GET("/:notebook/note/*path", publicHandler.GetPublicNote)
 		publicAPI.GET("/:notebook/folder", publicHandler.GetFolderNotes)

@@ -49,15 +49,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   const { checkAuth } = useAuthStore();
   const { themeMode } = useSettingsStore();
-  const { siteName, loadSiteName } = useSiteStore();
+  const { siteName, loadSiteSettings } = useSiteStore();
   const [systemDark, setSystemDark] = useState(
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
 
   useEffect(() => {
     checkAuth();
-    loadSiteName();
-  }, [checkAuth, loadSiteName]);
+    loadSiteSettings();
+  }, [checkAuth, loadSiteSettings]);
 
   useEffect(() => {
     document.title = siteName;

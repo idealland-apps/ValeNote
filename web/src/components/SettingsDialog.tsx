@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, Tabs, Tab, Box, List, ListItem, ListItemText,
   ListItemSecondaryAction, Select, MenuItem, Slider, Typography, Divider,
-  TextField, Button, Alert, CircularProgress
+  TextField, Button, Alert, CircularProgress, Switch
 } from '@mui/material';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
@@ -36,6 +36,7 @@ interface SystemSettings {
   version_retention_days: number;
   version_max_count: number;
   site_name: string;
+  show_powered_by: boolean;
 }
 
 export default function SettingsDialog({ open, onClose, notebooks }: Props) {
@@ -48,6 +49,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     version_retention_days: 30,
     version_max_count: 100,
     site_name: 'ValeNote',
+    show_powered_by: true,
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -55,10 +57,16 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
   const [success, setSuccess] = useState('');
   const [remoteStorageOpen, setRemoteStorageOpen] = useState(false);
   const [reservedPaths, setReservedPaths] = useState<string[]>([]);
+  const [appVersion, setAppVersion] = useState('loading...');
 
   useEffect(() => {
     if (open) {
       loadSettings();
+      api.get<{ version: string }>('/version').then(res => {
+        setAppVersion(res.data.version);
+      }).catch(() => {
+        setAppVersion('unknown');
+      });
     }
   }, [open]);
 
@@ -75,6 +83,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
         version_retention_days: sysRes.data.version_retention_days ?? 30,
         version_max_count: sysRes.data.version_max_count ?? 100,
         site_name: sysRes.data.site_name || 'ValeNote',
+        show_powered_by: sysRes.data.show_powered_by ?? true,
       });
     } catch {
       setError('Failed to load settings');
@@ -102,7 +111,11 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     setError('');
     try {
       await api.put('/settings/system', systemSettings);
-      useSiteStore.setState({ siteName: systemSettings.site_name, loaded: true });
+      useSiteStore.setState({
+        siteName: systemSettings.site_name,
+        showPoweredBy: systemSettings.show_powered_by,
+        loaded: true,
+      });
       setSuccess('Settings saved');
       setTimeout(() => setSuccess(''), 3000);
     } catch {
@@ -127,6 +140,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
             {isAdmin && <Tab label="Users" />}
             <Tab label="Public Access" />
             <Tab label="Backup" />
+            <Tab label="About" />
           </Tabs>
 
           {loading ? (
@@ -260,6 +274,35 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                   To make a notebook public, click the settings icon next to the notebook name in the sidebar
                   and enable "Public Access".
                 </Typography>
+
+                <Divider sx={{ my: 2 }} />
+
+                <List disablePadding>
+                  <ListItem>
+                    <ListItemText
+                      primary="Show 'Powered by ValeNote'"
+                      secondary="Display a credit link on public pages"
+                    />
+                    <ListItemSecondaryAction>
+                      <Switch
+                        checked={systemSettings.show_powered_by}
+                        onChange={(e) => setSystemSettings({
+                          ...systemSettings,
+                          show_powered_by: e.target.checked,
+                        })}
+                      />
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                </List>
+                <Box sx={{ mt: 2 }}>
+                  <Button
+                    variant="contained"
+                    onClick={handleSaveSystemSettings}
+                    disabled={saving}
+                  >
+                    Save
+                  </Button>
+                </Box>
               </TabPanel>
 
               <TabPanel value={tabIndex} index={isAdmin ? 5 : 3}>
@@ -339,6 +382,24 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                 >
                   Export All Notes
                 </Button>
+              </TabPanel>
+
+              <TabPanel value={tabIndex} index={isAdmin ? 6 : 4}>
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="h4" sx={{ mb: 2, fontWeight: 'bold' }}>
+                    ValeNote
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                    A modern note-taking application
+                  </Typography>
+                  <Typography variant="h6" sx={{ mb: 1 }}>
+                    Version: {appVersion}
+                  </Typography>
+                  <Divider sx={{ my: 3 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Built with Go, React, and Material-UI
+                  </Typography>
+                </Box>
               </TabPanel>
             </>
           )}

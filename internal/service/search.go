@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anthropics/valenote/internal/config"
-	"github.com/anthropics/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/config"
+	"github.com/idealland-apps/valenote/internal/model"
 	"gorm.io/gorm"
 )
 
