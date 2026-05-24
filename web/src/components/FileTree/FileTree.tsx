@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { useDrag, useDrop, DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
@@ -9,7 +9,7 @@ import {
   FolderOpen as FolderOpenIcon,
   FolderShared as FolderSharedIcon,
   FolderSharedOutlined as FolderSharedOpenIcon,
-  Description as FileIcon,
+  DescriptionOutlined as FileOutlinedIcon,
   CreateNewFolder as NewFolderIcon,
   NoteAdd as NewFileIcon,
   ContentCopy as CopyIcon,
@@ -34,13 +34,14 @@ interface DraggableTreeItemProps {
   node: TreeNode;
   expandedIds: string[];
   selectedId: string | null;
+  currentNotePath?: string | null;
   notebooks: Notebook[];
   onMove: (source: string, targetFolder: string) => void;
   onSelect: (path: string, type: 'file' | 'folder') => void;
   onContextMenu: (e: React.MouseEvent, node: TreeNode) => void;
 }
 
-function DraggableTreeItem({ node, expandedIds, selectedId, notebooks, onMove, onSelect, onContextMenu }: DraggableTreeItemProps) {
+function DraggableTreeItem({ node, expandedIds, selectedId, currentNotePath, notebooks, onMove, onSelect, onContextMenu }: DraggableTreeItemProps) {
   const ref = useRef<HTMLLIElement>(null);
 
   const [{ isDragging }, drag] = useDrag({
@@ -95,13 +96,22 @@ function DraggableTreeItem({ node, expandedIds, selectedId, notebooks, onMove, o
       ? <FolderOpenIcon fontSize="small" color="action" />
       : <FolderIcon fontSize="small" color="action" />;
   } else {
-    icon = <FileIcon fontSize="small" />;
+    icon = <FileOutlinedIcon fontSize="small" />;
   }
+
+  const normalizedCurrentPath = currentNotePath?.replace(/^\//, '');
+  const isCurrentNote = node.type === 'file' && normalizedCurrentPath === node.id;
 
   return (
     <TreeItem
       ref={ref}
       itemId={node.id}
+      sx={isCurrentNote ? {
+        '& > .MuiTreeItem-content': {
+          bgcolor: 'rgba(33, 150, 243, 0.12)',
+          borderRadius: 1,
+        },
+      } : undefined}
       label={
         <Box
           sx={{
@@ -129,6 +139,7 @@ function DraggableTreeItem({ node, expandedIds, selectedId, notebooks, onMove, o
           node={child}
           expandedIds={expandedIds}
           selectedId={selectedId}
+          currentNotePath={currentNotePath}
           notebooks={notebooks}
           onMove={onMove}
           onSelect={onSelect}
@@ -142,6 +153,7 @@ function DraggableTreeItem({ node, expandedIds, selectedId, notebooks, onMove, o
 export interface FileTreeProps {
   items: FileItem[];
   notebooks: Notebook[];
+  currentNotePath?: string | null;
   onFileSelect: (path: string) => void;
   onCreateNotebook: () => void;
   onCreateFolder: (parentPath: string) => void;
@@ -158,6 +170,7 @@ export interface FileTreeProps {
 export default function FileTree({
   items,
   notebooks,
+  currentNotePath,
   onFileSelect,
   onCreateNotebook,
   onCreateFolder,
@@ -170,9 +183,17 @@ export default function FileTree({
   onNotebookSettings,
   clipboardPath,
 }: FileTreeProps) {
-  const { tree, expandedIds, selectedId, handleExpandedChange, handleSelectChange, setSelectedId } = useFileTree(items);
+  const { tree, expandedIds, selectedId, handleExpandedChange, handleSelectChange, setSelectedId, expandTo } = useFileTree(items);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: TreeNode | null } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-expand to current note and select it
+  React.useEffect(() => {
+    if (currentNotePath) {
+      expandTo(currentNotePath);
+      setSelectedId(currentNotePath);
+    }
+  }, [currentNotePath, expandTo, setSelectedId]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
     e.preventDefault();
@@ -195,6 +216,13 @@ export default function FileTree({
       onFileSelect(path);
     }
   }, [setSelectedId, onFileSelect]);
+
+  const handleTreeSelectChange = useCallback((_event: React.SyntheticEvent | null, nodeId: string | null) => {
+    handleSelectChange(_event, nodeId);
+    if (nodeId && typeof nodeId === 'string' && nodeId.endsWith('.md')) {
+      onFileSelect(nodeId);
+    }
+  }, [handleSelectChange, onFileSelect]);
 
   const menuNode = contextMenu?.node;
   const isFolder = menuNode?.type === 'folder' || menuNode === null;
@@ -219,7 +247,7 @@ export default function FileTree({
             expandedItems={expandedIds}
             selectedItems={selectedId}
             onExpandedItemsChange={handleExpandedChange}
-            onSelectedItemsChange={handleSelectChange}
+            onSelectedItemsChange={handleTreeSelectChange}
           >
             {tree.map(node => (
               <DraggableTreeItem
@@ -227,6 +255,7 @@ export default function FileTree({
                 node={node}
                 expandedIds={expandedIds}
                 selectedId={selectedId}
+                currentNotePath={currentNotePath}
                 notebooks={notebooks}
                 onMove={onMove}
                 onSelect={handleSelect}

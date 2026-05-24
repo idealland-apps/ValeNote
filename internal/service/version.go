@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/anthropics/valenote/internal/config"
@@ -21,13 +23,35 @@ func NewVersionService(db *gorm.DB, cfg *config.Config) *VersionService {
 }
 
 type Version struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	NotePath  string    `json:"note_path"`
 	Size      int64     `json:"size"`
 	Checksum  string    `json:"checksum"`
-	CreatedBy *int64    `json:"created_by,omitempty"`
-	Username  string    `json:"username,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+func (s *VersionService) getVersionDir(notePath string) string {
+	dir := filepath.Dir(notePath)
+	base := filepath.Base(notePath)
+	base = strings.ReplaceAll(base, ".", "-")
+	return filepath.Join(s.cfg.Notes.VersionsPath, dir, base)
+}
+
+func (s *VersionService) parseVersionFile(filename string) (time.Time, string, error) {
+	base := strings.TrimSuffix(filename, ".md")
+	parts := strings.Split(base, "-")
+	if len(parts) < 3 {
+		return time.Time{}, "", os.ErrInvalid
+	}
+
+	dateStr := parts[0] + "-" + parts[1]
+	createdAt, err := time.ParseInLocation("20060102-150405", dateStr, time.Local)
+	if err != nil {
+		return time.Time{}, "", err
+	}
+
+	checksum := parts[2]
+	return createdAt, checksum, nil
 }
 
 func (s *VersionService) ListVersions(notePath string, limit int) ([]Version, error) {
@@ -35,120 +59,190 @@ func (s *VersionService) ListVersions(notePath string, limit int) ([]Version, er
 		limit = 50
 	}
 
-	var versions []model.NoteVersion
-	err := s.db.Where("note_path = ?", notePath).
-		Order("created_at DESC").
-		Limit(limit).
-		Preload("User").
-		Find(&versions).Error
+	versionDir := s.getVersionDir(notePath)
+	entries, err := os.ReadDir(versionDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return []Version{}, nil
+		}
 		return nil, err
 	}
 
-	result := make([]Version, 0, len(versions))
-	for _, v := range versions {
-		ver := Version{
-			ID:        v.ID,
-			NotePath:  v.NotePath,
-			Size:      v.Size,
-			Checksum:  v.Checksum,
-			CreatedBy: v.CreatedBy,
-			CreatedAt: v.CreatedAt,
+	var versions []Version
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
 		}
-		if v.User != nil {
-			ver.Username = v.User.Username
+
+		createdAt, checksum, err := s.parseVersionFile(entry.Name())
+		if err != nil {
+			continue
 		}
-		result = append(result, ver)
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		versions = append(versions, Version{
+			ID:        entry.Name(),
+			NotePath:  notePath,
+			Size:      info.Size(),
+			Checksum:  checksum,
+			CreatedAt: createdAt,
+		})
 	}
 
-	return result, nil
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].CreatedAt.After(versions[j].CreatedAt)
+	})
+
+	if len(versions) > limit {
+		versions = versions[:limit]
+	}
+
+	return versions, nil
 }
 
-func (s *VersionService) GetVersionContent(versionID int64) (string, *model.NoteVersion, error) {
-	var version model.NoteVersion
-	if err := s.db.First(&version, versionID).Error; err != nil {
-		return "", nil, err
-	}
+func (s *VersionService) GetVersionContent(notePath, versionID string) (string, *Version, error) {
+	versionDir := s.getVersionDir(notePath)
+	versionFile := filepath.Join(versionDir, versionID)
 
-	content, err := os.ReadFile(version.VersionFile)
+	content, err := os.ReadFile(versionFile)
 	if err != nil {
 		return "", nil, err
 	}
 
-	return string(content), &version, nil
+	info, err := os.Stat(versionFile)
+	if err != nil {
+		return "", nil, err
+	}
+
+	createdAt, checksum, _ := s.parseVersionFile(versionID)
+
+	version := &Version{
+		ID:        versionID,
+		NotePath:  notePath,
+		Size:      info.Size(),
+		Checksum:  checksum,
+		CreatedAt: createdAt,
+	}
+
+	return string(content), version, nil
 }
 
-func (s *VersionService) RestoreVersion(versionID int64, userID int64, noteService *NoteService) error {
-	content, version, err := s.GetVersionContent(versionID)
+func (s *VersionService) RestoreVersion(notePath, versionID string, userID int64, noteService *NoteService) error {
+	content, _, err := s.GetVersionContent(notePath, versionID)
 	if err != nil {
 		return err
 	}
 
-	currentPath := filepath.Join(s.cfg.Notes.RootPath, version.NotePath)
+	currentPath := filepath.Join(s.cfg.Notes.RootPath, notePath)
 	currentContent, err := os.ReadFile(currentPath)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
 	if len(currentContent) > 0 {
-		noteService.saveVersion(version.NotePath, currentContent, userID)
+		noteService.SaveVersion(notePath, currentContent, userID)
 	}
 
 	return os.WriteFile(currentPath, []byte(content), 0644)
 }
 
 func (s *VersionService) CleanupOldVersions(notePath string) error {
-	var retentionDays int
-	var maxCount int
+	retentionDays := 30
+	maxCount := 100
 
 	var daysSetting model.Setting
 	if err := s.db.Where("key = ?", "version_retention_days").First(&daysSetting).Error; err == nil {
-		retentionDays = 30
+		if v, err := strconv.Atoi(daysSetting.Value); err == nil {
+			retentionDays = v
+		}
 	}
 
 	var countSetting model.Setting
 	if err := s.db.Where("key = ?", "version_max_count").First(&countSetting).Error; err == nil {
-		maxCount = 100
-	}
-
-	var versions []model.NoteVersion
-	s.db.Where("note_path = ?", notePath).Order("created_at DESC").Find(&versions)
-
-	if len(versions) <= maxCount {
-		return nil
-	}
-
-	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
-	toDelete := make([]model.NoteVersion, 0)
-
-	for i, v := range versions {
-		if i >= maxCount && v.CreatedAt.Before(cutoffTime) {
-			toDelete = append(toDelete, v)
+		if v, err := strconv.Atoi(countSetting.Value); err == nil {
+			maxCount = v
 		}
 	}
 
-	for _, v := range toDelete {
-		os.Remove(v.VersionFile)
-		s.db.Delete(&v)
+	versionDir := s.getVersionDir(notePath)
+	entries, err := os.ReadDir(versionDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	type versionFile struct {
+		name      string
+		createdAt time.Time
+	}
+
+	var versions []versionFile
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		createdAt, _, err := s.parseVersionFile(entry.Name())
+		if err != nil {
+			continue
+		}
+		versions = append(versions, versionFile{name: entry.Name(), createdAt: createdAt})
+	}
+
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].createdAt.After(versions[j].createdAt)
+	})
+
+	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
+
+	for i, v := range versions {
+		if i >= maxCount || v.createdAt.Before(cutoffTime) {
+			os.Remove(filepath.Join(versionDir, v.name))
+		}
+	}
+
+	remaining, _ := os.ReadDir(versionDir)
+	if len(remaining) == 0 {
+		os.Remove(versionDir)
 	}
 
 	return nil
 }
 
+func (s *VersionService) MoveVersionDir(oldPath, newPath string) error {
+	oldVersionDir := s.getVersionDir(oldPath)
+	newVersionDir := s.getVersionDir(newPath)
+
+	if _, err := os.Stat(oldVersionDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(newVersionDir), 0755); err != nil {
+		return err
+	}
+
+	return os.Rename(oldVersionDir, newVersionDir)
+}
+
 type DiffLine struct {
-	Type    string `json:"type"` // added, removed, unchanged
+	Type    string `json:"type"`
 	Content string `json:"content"`
 	OldLine int    `json:"old_line,omitempty"`
 	NewLine int    `json:"new_line,omitempty"`
 }
 
-func (s *VersionService) DiffVersion(versionID int64, noteService *NoteService) ([]DiffLine, error) {
-	versionContent, version, err := s.GetVersionContent(versionID)
+func (s *VersionService) DiffVersion(notePath, versionID string, noteService *NoteService) ([]DiffLine, error) {
+	versionContent, _, err := s.GetVersionContent(notePath, versionID)
 	if err != nil {
 		return nil, err
 	}
 
-	note, err := noteService.GetNote(version.NotePath)
+	note, err := noteService.GetNote(notePath)
 	if err != nil {
 		return nil, err
 	}
@@ -219,8 +313,4 @@ func splitLines(s string) []string {
 		lines = append(lines, s[start:])
 	}
 	return lines
-}
-
-func init() {
-	_ = sort.Search
 }

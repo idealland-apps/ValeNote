@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Switch, FormControlLabel, Box, Alert, Divider, Typography } from '@mui/material';
 import { notebookApi } from '../services/api';
 import type { Notebook } from '../services/api';
+import { PUBLIC_BASE_PATH } from '../constants';
 
 interface Props {
   open: boolean;
@@ -72,7 +73,7 @@ export default function NotebookSettingsDialog({ open, onClose, notebook, onSave
 
   if (!notebook) return null;
 
-  const publicUrl = `${window.location.origin}/public/${notebook.name}/`;
+  const publicUrl = `${window.location.origin}${PUBLIC_BASE_PATH}/${notebook.name}/`;
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>

@@ -77,7 +77,10 @@ func (h *PublicHandler) HandlePublicNote(c *gin.Context) {
 
 func (h *PublicHandler) GetPublicBasePath(c *gin.Context) {
 	basePath := h.publicService.GetPublicBasePath()
-	c.JSON(http.StatusOK, gin.H{"path": basePath})
+	c.JSON(http.StatusOK, gin.H{
+		"path":           basePath,
+		"reserved_paths": service.GetReservedPaths(),
+	})
 }
 
 func (h *PublicHandler) SetPublicBasePath(c *gin.Context) {
@@ -163,4 +166,24 @@ func (h *PublicHandler) GetFolderNotes(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, notes)
+}
+
+func (h *PublicHandler) ServePublicAttachment(c *gin.Context) {
+	notebook := c.Param("notebook")
+	path := c.Param("path")
+	path = strings.TrimPrefix(path, "/")
+
+	if !h.publicService.IsNotebookPublic(notebook) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+
+	fullPath, err := h.publicService.GetAttachmentPath(notebook, path)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "attachment not found"})
+		return
+	}
+
+	c.Header("Cache-Control", "public, max-age=31536000")
+	c.File(fullPath)
 }

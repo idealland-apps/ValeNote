@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack, Snackbar, Alert } from '@mui/material';
-import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, Delete as DeleteIcon, History as HistoryIcon } from '@mui/icons-material';
+import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, Delete as DeleteIcon, History as HistoryIcon, AttachFile as AttachFileIcon } from '@mui/icons-material';
 import { useNoteStore } from '../stores/noteStore';
 import { useWebSocketStore } from '../stores/websocketStore';
 import type { Note } from '../services/api';
 import MarkdownRenderer from './MarkdownRenderer';
+import MarkdownEditor from './MarkdownEditor';
 import VersionHistoryDialog from './VersionHistoryDialog';
+import AttachmentManagerDialog from './AttachmentManagerDialog';
 import ConflictDialog from './ConflictDialog';
 import { EditorIndicator } from './NotificationBar';
 
@@ -13,11 +15,19 @@ interface Props {
   note: Note;
 }
 
+const EDITOR_MODE_KEY = 'valenote-editor-mode';
+
+function getInitialMode(): 'edit' | 'preview' {
+  const saved = localStorage.getItem(EDITOR_MODE_KEY);
+  return saved === 'preview' ? 'preview' : 'edit';
+}
+
 export default function NoteEditor({ note }: Props) {
   const [content, setContent] = useState(note.content || '');
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [mode, setMode] = useState<'edit' | 'preview'>(getInitialMode);
   const [saving, setSaving] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const { updateNote, deleteNote, setCurrentNote, loadNote } = useNoteStore();
   const { focusNote, blurNote, conflict, clearConflict } = useWebSocketStore();
@@ -88,12 +98,15 @@ export default function NoteEditor({ note }: Props) {
             <Chip key={tag} label={tag} size="small" />
           ))}
         </Stack>
-        <Tabs value={mode} onChange={(_, v) => setMode(v)} sx={{ minHeight: 36 }}>
+        <Tabs value={mode} onChange={(_, v) => { setMode(v); localStorage.setItem(EDITOR_MODE_KEY, v); }} sx={{ minHeight: 36 }}>
           <Tab icon={<EditIcon />} value="edit" sx={{ minHeight: 36, minWidth: 48 }} />
           <Tab icon={<ViewIcon />} value="preview" sx={{ minHeight: 36, minWidth: 48 }} />
         </Tabs>
         <IconButton onClick={() => setHistoryOpen(true)} title="Version History">
           <HistoryIcon />
+        </IconButton>
+        <IconButton onClick={() => setAttachmentOpen(true)} title="Attachments">
+          <AttachFileIcon />
         </IconButton>
         <IconButton onClick={handleSave} disabled={saving} color="primary">
           <SaveIcon />
@@ -102,26 +115,17 @@ export default function NoteEditor({ note }: Props) {
           <DeleteIcon />
         </IconButton>
       </Box>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
         {mode === 'edit' ? (
-          <textarea
+          <MarkdownEditor
             value={content}
-            onChange={(e) => setContent(e.target.value)}
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
-              fontFamily: 'monospace',
-              fontSize: '14px',
-              lineHeight: '1.6',
-              padding: '8px',
-              boxSizing: 'border-box',
-            }}
+            onChange={setContent}
+            notePath={note.path}
           />
         ) : (
-          <MarkdownRenderer content={content} />
+          <Box sx={{ height: '100%', overflow: 'auto', p: 2 }}>
+            <MarkdownRenderer content={content} notePath={note.path} />
+          </Box>
         )}
       </Box>
       <VersionHistoryDialog
@@ -129,6 +133,12 @@ export default function NoteEditor({ note }: Props) {
         onClose={() => setHistoryOpen(false)}
         notePath={note.path}
         onRestore={handleVersionRestore}
+      />
+      <AttachmentManagerDialog
+        open={attachmentOpen}
+        onClose={() => setAttachmentOpen(false)}
+        notePath={note.path}
+        onInsert={(link) => setContent((prev) => prev + '\n' + link)}
       />
       <ConflictDialog
         open={conflictOpen}

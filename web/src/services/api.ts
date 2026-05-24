@@ -86,6 +86,14 @@ export const notebookApi = {
   delete: (name: string) => api.delete(`/notebooks/${name}`),
 };
 
+export interface SearchResult {
+  path: string;
+  title: string;
+  snippet?: string;
+  tags?: string[];
+  notebook: string;
+}
+
 export const noteApi = {
   list: (notebook?: string, recursive = true) =>
     api.get<Note[]>('/notes', { params: { notebook, recursive } }),
@@ -97,6 +105,8 @@ export const noteApi = {
   delete: (path: string) => api.delete(`/notes/${path}`),
   search: (q: string, notebook?: string, tags?: string[], limit = 20) =>
     api.get<Note[]>('/search', { params: { q, notebook, tags: tags?.join(','), limit } }),
+  searchFulltext: (q: string, notebook?: string, limit = 20) =>
+    api.get<SearchResult[]>('/search/fulltext', { params: { q, notebook, limit } }),
 };
 
 export interface UploadResult {
@@ -143,6 +153,13 @@ export const publicApi = {
   },
 };
 
+export interface AttachmentInfo {
+  name: string;
+  path: string;
+  size: number;
+  mime_type: string;
+}
+
 export const attachmentApi = {
   upload: (notePath: string, file: File) => {
     const formData = new FormData();
@@ -152,6 +169,10 @@ export const attachmentApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  list: (notePath: string) =>
+    api.get<AttachmentInfo[]>('/note-attachments', { params: { note_path: notePath } }),
+  delete: (notePath: string, filename: string) =>
+    api.delete('/note-attachments', { data: { note_path: notePath, filename } }),
 };
 
 export const tagApi = {

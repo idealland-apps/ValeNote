@@ -37,14 +37,14 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 }
 
 func (h *VersionHandler) GetVersionContent(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid version id"})
+	notePath := strings.TrimPrefix(c.Param("path"), "/")
+	versionID := c.Query("id")
+	if versionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "version id required"})
 		return
 	}
 
-	content, version, err := h.versionService.GetVersionContent(id)
+	content, version, err := h.versionService.GetVersionContent(notePath, versionID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "version not found"})
 		return
@@ -61,15 +61,15 @@ func (h *VersionHandler) GetVersionContent(c *gin.Context) {
 }
 
 func (h *VersionHandler) RestoreVersion(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid version id"})
+	notePath := strings.TrimPrefix(c.Param("path"), "/")
+	versionID := c.Query("id")
+	if versionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "version id required"})
 		return
 	}
 
 	userID := middleware.GetUserID(c)
-	if err := h.versionService.RestoreVersion(id, userID, h.noteService); err != nil {
+	if err := h.versionService.RestoreVersion(notePath, versionID, userID, h.noteService); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -78,14 +78,14 @@ func (h *VersionHandler) RestoreVersion(c *gin.Context) {
 }
 
 func (h *VersionHandler) DiffVersion(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid version id"})
+	notePath := strings.TrimPrefix(c.Param("path"), "/")
+	versionID := c.Query("id")
+	if versionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "version id required"})
 		return
 	}
 
-	diff, err := h.versionService.DiffVersion(id, h.noteService)
+	diff, err := h.versionService.DiffVersion(notePath, versionID, h.noteService)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

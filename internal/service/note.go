@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -275,7 +277,7 @@ func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int
 		return nil, err
 	}
 
-	s.saveVersion(cleanPath, existingContent, userID)
+	s.SaveVersion(cleanPath, existingContent, userID)
 
 	var newContent string
 	if req.Append {
@@ -313,6 +315,8 @@ func (s *NoteService) DeleteNote(path string) error {
 	}
 
 	s.db.Where("path = ?", cleanPath).Delete(&model.NoteMetadata{})
+
+	s.deleteAttachmentDir(cleanPath)
 
 	return nil
 }
@@ -421,9 +425,9 @@ func (s *NoteService) indexNote(path string) error {
 	return s.db.Where("path = ?", path).Assign(metadata).FirstOrCreate(&metadata).Error
 }
 
-func (s *NoteService) saveVersion(path string, content []byte, userID int64) error {
+func (s *NoteService) SaveVersion(path string, content []byte, userID int64) error {
 	checksum := sha256sum(content)[:6]
-	versionDir := filepath.Join(s.cfg.Notes.VersionsPath, filepath.Dir(path), strings.TrimSuffix(filepath.Base(path), ".md"))
+	versionDir := s.getVersionDir(path)
 
 	if err := os.MkdirAll(versionDir, 0755); err != nil {
 		return err
@@ -434,15 +438,181 @@ func (s *NoteService) saveVersion(path string, content []byte, userID int64) err
 		return err
 	}
 
-	version := model.NoteVersion{
-		NotePath:    path,
-		VersionFile: versionFileName,
-		Size:        int64(len(content)),
-		Checksum:    sha256sum(content),
-		CreatedBy:   &userID,
+	s.cleanupOldVersions(path)
+	return nil
+}
+
+func (s *NoteService) getVersionDir(notePath string) string {
+	dir := filepath.Dir(notePath)
+	base := filepath.Base(notePath)
+	base = strings.ReplaceAll(base, ".", "-")
+	return filepath.Join(s.cfg.Notes.VersionsPath, dir, base)
+}
+
+func (s *NoteService) moveVersionDir(oldPath, newPath string) error {
+	oldVersionDir := s.getVersionDir(oldPath)
+	newVersionDir := s.getVersionDir(newPath)
+
+	if _, err := os.Stat(oldVersionDir); os.IsNotExist(err) {
+		return nil
 	}
 
-	return s.db.Create(&version).Error
+	if err := os.MkdirAll(filepath.Dir(newVersionDir), 0755); err != nil {
+		return err
+	}
+
+	return os.Rename(oldVersionDir, newVersionDir)
+}
+
+func (s *NoteService) moveVersionDirRecursive(oldBasePath, newBasePath string) error {
+	oldVersionBase := filepath.Join(s.cfg.Notes.VersionsPath, oldBasePath)
+
+	if _, err := os.Stat(oldVersionBase); os.IsNotExist(err) {
+		return nil
+	}
+
+	newVersionBase := filepath.Join(s.cfg.Notes.VersionsPath, newBasePath)
+
+	if err := os.MkdirAll(filepath.Dir(newVersionBase), 0755); err != nil {
+		return err
+	}
+
+	return os.Rename(oldVersionBase, newVersionBase)
+}
+
+func (s *NoteService) getAttachmentDir(notePath string) string {
+	dir := filepath.Dir(notePath)
+	base := filepath.Base(notePath)
+	base = strings.ReplaceAll(base, ".", "-")
+	if dir == "." {
+		return filepath.Join(s.cfg.Notes.RootPath, "attachments", base)
+	}
+	return filepath.Join(s.cfg.Notes.RootPath, dir, "attachments", base)
+}
+
+func (s *NoteService) moveAttachmentDir(oldPath, newPath string) error {
+	oldAttachDir := s.getAttachmentDir(oldPath)
+	newAttachDir := s.getAttachmentDir(newPath)
+
+	if _, err := os.Stat(oldAttachDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(newAttachDir), 0755); err != nil {
+		return err
+	}
+
+	return os.Rename(oldAttachDir, newAttachDir)
+}
+
+func (s *NoteService) moveAttachmentDirRecursive(oldBasePath, newBasePath string) error {
+	oldDir := filepath.Dir(oldBasePath)
+	newDir := filepath.Dir(newBasePath)
+	oldBase := filepath.Base(oldBasePath)
+	newBase := filepath.Base(newBasePath)
+
+	var oldAttachBase, newAttachBase string
+	if oldDir == "." {
+		oldAttachBase = filepath.Join(s.cfg.Notes.RootPath, oldBase, "attachments")
+		newAttachBase = filepath.Join(s.cfg.Notes.RootPath, newBase, "attachments")
+	} else {
+		oldAttachBase = filepath.Join(s.cfg.Notes.RootPath, oldDir, oldBase, "attachments")
+		newAttachBase = filepath.Join(s.cfg.Notes.RootPath, newDir, newBase, "attachments")
+	}
+
+	if _, err := os.Stat(oldAttachBase); os.IsNotExist(err) {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(newAttachBase), 0755); err != nil {
+		return err
+	}
+
+	return os.Rename(oldAttachBase, newAttachBase)
+}
+
+func (s *NoteService) deleteAttachmentDir(notePath string) {
+	attachDir := s.getAttachmentDir(notePath)
+	os.RemoveAll(attachDir)
+}
+
+func (s *NoteService) deleteAttachmentDirRecursive(folderPath string) {
+	fullPath := filepath.Join(s.cfg.Notes.RootPath, folderPath)
+
+	filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".md") {
+			relPath, _ := filepath.Rel(s.cfg.Notes.RootPath, path)
+			s.deleteAttachmentDir(relPath)
+		}
+		return nil
+	})
+}
+
+func (s *NoteService) cleanupOldVersions(notePath string) {
+	retentionDays := 30
+	maxCount := 100
+
+	var daysSetting model.Setting
+	if err := s.db.Where("key = ?", "version_retention_days").First(&daysSetting).Error; err == nil {
+		if v, err := strconv.Atoi(daysSetting.Value); err == nil {
+			retentionDays = v
+		}
+	}
+
+	var countSetting model.Setting
+	if err := s.db.Where("key = ?", "version_max_count").First(&countSetting).Error; err == nil {
+		if v, err := strconv.Atoi(countSetting.Value); err == nil {
+			maxCount = v
+		}
+	}
+
+	versionDir := s.getVersionDir(notePath)
+	entries, err := os.ReadDir(versionDir)
+	if err != nil {
+		return
+	}
+
+	type versionFile struct {
+		name      string
+		createdAt time.Time
+	}
+
+	var versions []versionFile
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		createdAt, err := s.parseVersionFilename(entry.Name())
+		if err != nil {
+			continue
+		}
+		versions = append(versions, versionFile{name: entry.Name(), createdAt: createdAt})
+	}
+
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].createdAt.After(versions[j].createdAt)
+	})
+
+	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
+
+	for i, v := range versions {
+		if i >= maxCount || v.createdAt.Before(cutoffTime) {
+			os.Remove(filepath.Join(versionDir, v.name))
+		}
+	}
+}
+
+func (s *NoteService) parseVersionFilename(filename string) (time.Time, error) {
+	base := strings.TrimSuffix(filename, ".md")
+	parts := strings.Split(base, "-")
+	if len(parts) < 3 {
+		return time.Time{}, os.ErrInvalid
+	}
+	dateStr := parts[0] + "-" + parts[1]
+	return time.ParseInLocation("20060102-150405", dateStr, time.Local)
 }
 
 func (s *NoteService) buildNoteContent(title, content string, tags []string) string {
@@ -510,6 +680,11 @@ func (s *NoteService) CreateFolder(path string) error {
 		return err
 	}
 
+	parts := strings.Split(cleanPath, string(os.PathSeparator))
+	if model.ContainsReservedFolder(parts) {
+		return ErrInvalidPath
+	}
+
 	fullPath := filepath.Join(s.cfg.Notes.RootPath, cleanPath)
 	return os.MkdirAll(fullPath, 0755)
 }
@@ -533,9 +708,15 @@ func (s *NoteService) DeleteFolder(path string) error {
 		return ErrInvalidPath
 	}
 
+	s.deleteAttachmentDirRecursive(cleanPath)
+
+	if err := os.RemoveAll(fullPath); err != nil {
+		return err
+	}
+
 	s.db.Where("path LIKE ?", cleanPath+"/%").Delete(&model.NoteMetadata{})
 
-	return os.RemoveAll(fullPath)
+	return nil
 }
 
 func (s *NoteService) MoveFile(source, target string) error {
@@ -566,10 +747,14 @@ func (s *NoteService) MoveFile(source, target string) error {
 	info, _ := os.Stat(fullTarget)
 	if info != nil && !info.IsDir() {
 		s.db.Model(&model.NoteMetadata{}).Where("path = ?", sourcePath).Update("path", targetPath)
+		s.moveVersionDir(sourcePath, targetPath)
+		s.moveAttachmentDir(sourcePath, targetPath)
 	} else {
 		s.db.Model(&model.NoteMetadata{}).Where("path LIKE ?", sourcePath+"/%").Updates(map[string]interface{}{
 			"path": gorm.Expr("REPLACE(path, ?, ?)", sourcePath+"/", targetPath+"/"),
 		})
+		s.moveVersionDirRecursive(sourcePath, targetPath)
+		s.moveAttachmentDirRecursive(sourcePath, targetPath)
 	}
 
 	return nil
@@ -707,11 +892,15 @@ func (s *NoteService) syncNotebooks() {
 		return
 	}
 
+	// Track existing notebooks in filesystem
+	fsNotebooks := make(map[string]bool)
+
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 		name := entry.Name()
+		fsNotebooks[name] = true
 		var existing model.Notebook
 		if err := s.db.Where("name = ?", name).First(&existing).Error; err != nil {
 			notebook := &model.Notebook{
@@ -720,4 +909,71 @@ func (s *NoteService) syncNotebooks() {
 			s.db.Create(notebook)
 		}
 	}
+
+	// Remove notebooks from database that no longer exist in filesystem
+	var dbNotebooks []model.Notebook
+	s.db.Find(&dbNotebooks)
+	for _, nb := range dbNotebooks {
+		if !fsNotebooks[nb.Name] {
+			s.db.Delete(&nb)
+		}
+	}
+}
+
+// SyncFromFilesystem performs a full sync from filesystem to database on startup.
+// This ensures database metadata matches the actual filesystem state.
+func (s *NoteService) SyncFromFilesystem() error {
+	// Step 1: Sync notebooks (folders at root level)
+	s.syncNotebooks()
+
+	// Step 2: Scan all markdown files and build a set of existing paths
+	existingPaths := make(map[string]bool)
+
+	err := filepath.Walk(s.cfg.Notes.RootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+
+		relPath, _ := filepath.Rel(s.cfg.Notes.RootPath, path)
+		existingPaths[relPath] = true
+
+		// Check if metadata needs update by comparing checksum
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+
+		currentChecksum := sha256sum(content)
+
+		var metadata model.NoteMetadata
+		if err := s.db.Where("path = ?", relPath).First(&metadata).Error; err != nil {
+			// Not in database, index it
+			s.indexNote(relPath)
+		} else if metadata.Checksum != currentChecksum || metadata.FileMtime != info.ModTime() {
+			// Checksum or mtime changed, re-index
+			s.indexNote(relPath)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// Step 3: Remove metadata entries for files that no longer exist
+	var allMetadata []model.NoteMetadata
+	s.db.Find(&allMetadata)
+
+	for _, m := range allMetadata {
+		if !existingPaths[m.Path] {
+			s.db.Delete(&m)
+		}
+	}
+
+	return nil
 }

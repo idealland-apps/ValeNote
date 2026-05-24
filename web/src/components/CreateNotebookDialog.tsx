@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Alert } from '@mui/material';
 import { notebookApi } from '../services/api';
+import { isReservedFolderName, RESERVED_FOLDER_NAMES } from '../constants';
 
 interface Props {
   open: boolean;
@@ -15,12 +16,17 @@ export default function CreateNotebookDialog({ open, onClose, onCreated }: Props
   const [error, setError] = useState('');
 
   const handleCreate = async () => {
-    if (!name.trim()) return;
+    const normalized = name.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!normalized) return;
+    if (isReservedFolderName(normalized)) {
+      setError(`"${normalized}" is a reserved name (${RESERVED_FOLDER_NAMES.join(', ')})`);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       await notebookApi.create({
-        name: name.trim().toLowerCase().replace(/\s+/g, '-'),
+        name: normalized,
         description: description.trim() || undefined,
       });
       onCreated();

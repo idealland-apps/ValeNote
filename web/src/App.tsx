@@ -6,6 +6,7 @@ import { useAuthStore } from './stores/authStore';
 import { useWebSocketStore } from './stores/websocketStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { useSiteStore } from './stores/siteStore';
+import { PUBLIC_BASE_PATH } from './constants';
 import LoginPage from './pages/LoginPage';
 import MainPage from './pages/MainPage';
 import PublicIndexPage from './pages/PublicIndexPage';
@@ -84,8 +85,8 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/public" element={<PublicIndexPage />} />
-          <Route path="/public/:notebook/*" element={<PublicNotebookPage />} />
+          <Route path={PUBLIC_BASE_PATH} element={<PublicIndexPage />} />
+          <Route path={`${PUBLIC_BASE_PATH}/:notebook/*`} element={<PublicNotebookPage />} />
           <Route
             path="/*"
             element={

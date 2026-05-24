@@ -1,11 +1,15 @@
-import { useMemo } from 'react';
-import { Box, Table, TableBody, TableRow, TableCell, Chip } from '@mui/material';
+import { useMemo, useState, useEffect } from 'react';
+import { Box, Table, TableBody, TableRow, TableCell, Chip, CircularProgress } from '@mui/material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import api from '../services/api';
 
 interface Props {
   content: string;
   onTagClick?: (tag: string) => void;
+  notePath?: string;
+  isPublic?: boolean;
+  notebook?: string;
 }
 
 interface Frontmatter {
@@ -15,7 +19,6 @@ interface Frontmatter {
 
 function parseTags(value: string): string[] {
   const trimmed = value.trim();
-  // Format: [tag1, tag2]
   if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
     return trimmed
       .slice(1, -1)
@@ -23,14 +26,12 @@ function parseTags(value: string): string[] {
       .map(t => t.trim().replace(/^["']|["']$/g, ''))
       .filter(Boolean);
   }
-  // Format: tag1, tag2, tag3
   if (trimmed.includes(',')) {
     return trimmed
       .split(',')
       .map(t => t.trim().replace(/^["']|["']$/g, ''))
       .filter(Boolean);
   }
-  // Single tag
   return trimmed ? [trimmed.replace(/^["']|["']$/g, '')] : [];
 }
 
@@ -94,8 +95,199 @@ const markdownStyles = {
   '& a': { color: 'primary.main' },
 };
 
-export default function MarkdownRenderer({ content, onTagClick }: Props) {
+const blobCache = new Map<string, string>();
+
+function AuthenticatedImage({ src, alt }: { src?: string; alt?: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!src) {
+      setLoading(false);
+      return;
+    }
+
+    if (blobCache.has(src)) {
+      setBlobUrl(blobCache.get(src)!);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    api.get(src.replace(/^.*\/api\/v1/, ''), { responseType: 'blob' })
+      .then(response => {
+        if (cancelled) return;
+        const url = URL.createObjectURL(response.data);
+        blobCache.set(src, url);
+        setBlobUrl(url);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setError(true);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  if (loading) {
+    return <CircularProgress size={20} />;
+  }
+
+  if (error || !blobUrl) {
+    return <Box component="span" sx={{ color: 'error.main' }}>[图片加载失败]</Box>;
+  }
+
+  return <img src={blobUrl} alt={alt || ''} style={{ maxWidth: '100%' }} />;
+}
+
+function AuthenticatedLink({ href, children }: { href?: string; children?: React.ReactNode }) {
+  const handleClick = async (e: React.MouseEvent) => {
+    if (!href) return;
+
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+    if (!href.startsWith(apiBase + '/attachments/')) {
+      return;
+    }
+
+    e.preventDefault();
+
+    try {
+      const response = await api.get(href.replace(apiBase, ''), { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      const filename = href.split('/').pop() || 'download';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      console.error('Failed to download attachment');
+    }
+  };
+
+  return (
+    <a href={href} onClick={handleClick}>
+      {children}
+    </a>
+  );
+}
+
+function PublicLink({ href, children }: { href?: string; children?: React.ReactNode }) {
+  const handleClick = async (e: React.MouseEvent) => {
+    if (!href) return;
+
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+    if (!href.startsWith(apiBase + '/public/')) {
+      return;
+    }
+
+    e.preventDefault();
+
+    try {
+      const response = await fetch(href);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const filename = href.split('/').pop() || 'download';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      console.error('Failed to download attachment');
+    }
+  };
+
+  return (
+    <a href={href} onClick={handleClick}>
+      {children}
+    </a>
+  );
+}
+
+export default function MarkdownRenderer({ content, onTagClick, notePath, isPublic, notebook }: Props) {
   const { frontmatter, body } = useMemo(() => parseFrontmatter(content), [content]);
+
+  const resolveUrl = useMemo(() => {
+    if (!notePath) return (url: string) => url;
+
+    const noteDir = notePath.substring(0, notePath.lastIndexOf('/'));
+
+    return (url: string) => {
+      if (!url.startsWith('./') && !url.startsWith('../')) {
+        return url;
+      }
+
+      let resolvedPath: string;
+      if (url.startsWith('./')) {
+        resolvedPath = noteDir ? `${noteDir}/${url.slice(2)}` : url.slice(2);
+      } else {
+        const parts = noteDir.split('/');
+        let relPath = url;
+        while (relPath.startsWith('../')) {
+          parts.pop();
+          relPath = relPath.slice(3);
+        }
+        resolvedPath = parts.length > 0 ? `${parts.join('/')}/${relPath}` : relPath;
+      }
+
+      return resolvedPath;
+    };
+  }, [notePath]);
+
+  const transformUrl = useMemo(() => {
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+
+    return (url: string) => {
+      const resolvedPath = resolveUrl(url);
+      if (resolvedPath === url && !url.startsWith('./') && !url.startsWith('../')) {
+        return url;
+      }
+
+      const cleanPath = resolvedPath.startsWith('/') ? resolvedPath.slice(1) : resolvedPath;
+
+      if (isPublic && notebook) {
+        const pathWithoutNotebook = cleanPath.startsWith(notebook + '/')
+          ? cleanPath.slice(notebook.length + 1)
+          : cleanPath;
+        return `${apiBase}/public/${notebook}/attachment/${pathWithoutNotebook}`;
+      }
+      return `${apiBase}/attachments/${cleanPath}`;
+    };
+  }, [resolveUrl, isPublic, notebook]);
+
+  const components = useMemo(() => {
+    if (isPublic) {
+      return {
+        a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+          const resolvedHref = href ? transformUrl(href) : undefined;
+          return <PublicLink href={resolvedHref}>{children}</PublicLink>;
+        },
+      };
+    }
+    return {
+      img: ({ src, alt }: { src?: string; alt?: string }) => {
+        const resolvedSrc = src ? transformUrl(src) : undefined;
+        return <AuthenticatedImage src={resolvedSrc} alt={alt} />;
+      },
+      a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+        const resolvedHref = href ? transformUrl(href) : undefined;
+        return <AuthenticatedLink href={resolvedHref}>{children}</AuthenticatedLink>;
+      },
+    };
+  }, [isPublic, transformUrl]);
 
   const renderValue = (key: string, value: string | string[] | undefined) => {
     if (key === 'tags' && Array.isArray(value)) {
@@ -133,7 +325,13 @@ export default function MarkdownRenderer({ content, onTagClick }: Props) {
           </TableBody>
         </Table>
       )}
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        urlTransform={isPublic ? transformUrl : undefined}
+        components={components}
+      >
+        {body}
+      </ReactMarkdown>
     </Box>
   );
 }

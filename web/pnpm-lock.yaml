@@ -8,12 +8,33 @@ importers:
 
   .:
     dependencies:
+      '@codemirror/commands':
+        specifier: ^6.10.3
+        version: 6.10.3
+      '@codemirror/lang-markdown':
+        specifier: ^6.5.0
+        version: 6.5.0
+      '@codemirror/language':
+        specifier: ^6.12.3
+        version: 6.12.3
+      '@codemirror/language-data':
+        specifier: ^6.5.2
+        version: 6.5.2
+      '@codemirror/state':
+        specifier: ^6.6.0
+        version: 6.6.0
+      '@codemirror/view':
+        specifier: ^6.43.0
+        version: 6.43.0
       '@emotion/react':
         specifier: ^11.14.0
         version: 11.14.0(@types/react@19.2.15)(react@19.2.6)
       '@emotion/styled':
         specifier: ^11.14.1
         version: 11.14.1(@emotion/react@11.14.0(@types/react@19.2.15)(react@19.2.6))(@types/react@19.2.15)(react@19.2.6)
+      '@lezer/highlight':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@milkdown/core':
         specifier: ^7.21.1
         version: 7.21.1
@@ -44,6 +65,9 @@ importers:
       axios:
         specifier: ^1.16.1
         version: 1.16.1
+      codemirror:
+        specifier: ^6.0.2
+        version: 6.0.2
       react:
         specifier: ^19.2.6
         version: 19.2.6

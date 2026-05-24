@@ -102,3 +102,49 @@ func (h *AttachmentHandler) ServeFromNote(c *gin.Context) {
 	c.Header("Cache-Control", "public, max-age=31536000")
 	c.File(fullPath)
 }
+
+func (h *AttachmentHandler) List(c *gin.Context) {
+	notePath := c.Query("note_path")
+	if notePath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "note_path is required"})
+		return
+	}
+
+	attachments, err := h.attachmentService.List(notePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, attachments)
+}
+
+func (h *AttachmentHandler) Delete(c *gin.Context) {
+	var req struct {
+		NotePath string `json:"note_path"`
+		Filename string `json:"filename"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if req.NotePath == "" || req.Filename == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "note_path and filename are required"})
+		return
+	}
+
+	if err := h.attachmentService.Delete(req.NotePath, req.Filename); err != nil {
+		if err == service.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "attachment not found"})
+			return
+		}
+		if err == service.ErrPathEscape {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}

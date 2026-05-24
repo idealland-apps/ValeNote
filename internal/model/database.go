@@ -28,7 +28,6 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&Agent{},
 		&AgentNotebookPermission{},
 		&NoteMetadata{},
-		&NoteVersion{},
 		&NoteLock{},
 		&Setting{},
 		&RemoteStorage{},

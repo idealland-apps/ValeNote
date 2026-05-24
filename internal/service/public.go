@@ -16,7 +16,15 @@ import (
 var reservedPaths = map[string]bool{
 	"api": true, "ws": true, "mcp": true, "auth": true,
 	"app": true, "assets": true, "settings": true, "admin": true,
-	"health": true, "public": true, "login": true,
+	"health": true, "login": true, "attachments": true,
+}
+
+func GetReservedPaths() []string {
+	paths := make([]string, 0, len(reservedPaths))
+	for p := range reservedPaths {
+		paths = append(paths, p)
+	}
+	return paths
 }
 
 type PublicTreeItem struct {
@@ -146,6 +154,11 @@ func (s *PublicService) buildTree(fsPath, relativePath string, parent *PublicTre
 
 	for _, entry := range entries {
 		name := entry.Name()
+
+		if entry.IsDir() && model.IsReservedFolderName(name) {
+			continue
+		}
+
 		childRelPath := relativePath + "/" + name
 		childFsPath := filepath.Join(fsPath, name)
 
@@ -208,6 +221,29 @@ func (s *PublicService) GetFolderNotes(notebookName, folderPath string) ([]Note,
 	}
 
 	return notes, nil
+}
+
+func (s *PublicService) GetAttachmentPath(notebookName, attachmentPath string) (string, error) {
+	if !s.IsNotebookPublic(notebookName) {
+		return "", ErrNotebookNotFound
+	}
+
+	attachmentPath = strings.TrimPrefix(attachmentPath, "/")
+	cleaned := filepath.Clean(attachmentPath)
+	if strings.Contains(cleaned, "..") {
+		return "", ErrPathEscape
+	}
+
+	fullPath := filepath.Join(s.cfg.Notes.RootPath, notebookName, cleaned)
+	if !strings.HasPrefix(fullPath, filepath.Join(s.cfg.Notes.RootPath, notebookName)) {
+		return "", ErrPathEscape
+	}
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return "", ErrNotFound
+	}
+
+	return fullPath, nil
 }
 
 func (s *PublicService) RenderNoteHTML(note *Note) (string, error) {

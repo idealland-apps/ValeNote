@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
+import { containsReservedFolder } from '../../constants';
 
 export interface FileItem {
   path: string;
@@ -24,7 +25,9 @@ export function buildTree(items: FileItem[]): TreeNode[] {
   const root: TreeNode[] = [];
   const map = new Map<string, TreeNode>();
 
-  const sorted = [...items].sort((a, b) => {
+  const filtered = items.filter(item => !containsReservedFolder(item.path));
+
+  const sorted = [...filtered].sort((a, b) => {
     if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
     return a.path.localeCompare(b.path);
   });

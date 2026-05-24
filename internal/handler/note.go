@@ -11,11 +11,12 @@ import (
 )
 
 type NoteHandler struct {
-	noteService *service.NoteService
+	noteService   *service.NoteService
+	searchService *service.SearchService
 }
 
-func NewNoteHandler(noteService *service.NoteService) *NoteHandler {
-	return &NoteHandler{noteService: noteService}
+func NewNoteHandler(noteService *service.NoteService, searchService *service.SearchService) *NoteHandler {
+	return &NoteHandler{noteService: noteService, searchService: searchService}
 }
 
 func (h *NoteHandler) ListNotebooks(c *gin.Context) {
@@ -221,6 +222,22 @@ func (h *NoteHandler) SearchNotes(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, notes)
+}
+
+func (h *NoteHandler) SearchFulltext(c *gin.Context) {
+	query := c.Query("q")
+	notebook := c.Query("notebook")
+	limitStr := c.DefaultQuery("limit", "20")
+
+	limit, _ := strconv.Atoi(limitStr)
+
+	results, err := h.searchService.SearchFulltext(query, notebook, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
 }
 
 type CreateFolderRequest struct {

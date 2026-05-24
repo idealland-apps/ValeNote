@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from '@mui/material';
+import { isReservedFolderName, RESERVED_FOLDER_NAMES } from '../constants';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -27,6 +28,10 @@ export default function CreateFolderDialog({ open, onClose, onConfirm, parentPat
     }
     if (/[\/\\:*?"<>|]/.test(trimmed)) {
       setError('Invalid characters in folder name');
+      return;
+    }
+    if (isReservedFolderName(trimmed)) {
+      setError(`"${trimmed}" is a reserved name (${RESERVED_FOLDER_NAMES.join(', ')})`);
       return;
     }
     onConfirm(trimmed);

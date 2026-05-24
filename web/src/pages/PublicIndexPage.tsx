@@ -1,5 +1,6 @@
 import { Box, AppBar, Toolbar, Typography, Container, Alert } from '@mui/material';
 import { useSiteStore } from '../stores/siteStore';
+import { PUBLIC_BASE_PATH } from '../constants';
 
 export default function PublicIndexPage() {
   const { siteName } = useSiteStore();
@@ -16,7 +17,7 @@ export default function PublicIndexPage() {
 
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Alert severity="info">
-          Please access a specific notebook directly, e.g., /public/notebook-name
+          Please access a specific notebook directly, e.g., {PUBLIC_BASE_PATH}/notebook-name
         </Alert>
       </Container>
     </Box>

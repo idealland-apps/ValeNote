@@ -2,8 +2,10 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/anthropics/valenote/internal/config"
 	"github.com/anthropics/valenote/internal/handler"
@@ -38,10 +40,15 @@ func main() {
 
 	authService := service.NewAuthService(db, cfg)
 	noteService := service.NewNoteService(db, cfg)
+
+	// Sync filesystem with database on startup
+	if err := noteService.SyncFromFilesystem(); err != nil {
+		log.Printf("Warning: Initial filesystem sync failed: %v", err)
+	}
 	attachmentService := service.NewAttachmentService(cfg)
 	versionService := service.NewVersionService(db, cfg)
 	exportService := service.NewExportService(cfg)
-	searchService := service.NewSearchService(db)
+	searchService := service.NewSearchService(db, cfg)
 	publicService := service.NewPublicService(db, cfg, noteService)
 	linkService := service.NewLinkService(db, noteService)
 	remoteSyncService := service.NewRemoteSyncService(db, cfg)
@@ -52,7 +59,7 @@ func main() {
 	mcpServer := mcp.NewServer(noteService, searchService)
 
 	authHandler := handler.NewAuthHandler(authService)
-	noteHandler := handler.NewNoteHandler(noteService)
+	noteHandler := handler.NewNoteHandler(noteService, searchService)
 	attachmentHandler := handler.NewAttachmentHandler(attachmentService)
 	versionHandler := handler.NewVersionHandler(versionService, noteService)
 	exportHandler := handler.NewExportHandler(exportService)
@@ -107,14 +114,17 @@ func main() {
 			protected.DELETE("/folders/*path", noteHandler.DeleteFolder)
 
 			protected.GET("/search", noteHandler.SearchNotes)
+			protected.GET("/search/fulltext", noteHandler.SearchFulltext)
 			protected.GET("/tags", tagHandler.ListTags)
 
 			protected.POST("/upload", attachmentHandler.Upload)
+			protected.GET("/note-attachments", attachmentHandler.List)
+			protected.DELETE("/note-attachments", attachmentHandler.Delete)
 
 			protected.GET("/versions/*path", versionHandler.ListVersions)
-			protected.GET("/version/:id", versionHandler.GetVersionContent)
-			protected.POST("/version/:id/restore", versionHandler.RestoreVersion)
-			protected.GET("/version/:id/diff", versionHandler.DiffVersion)
+			protected.GET("/version/*path", versionHandler.GetVersionContent)
+			protected.POST("/version/*path", versionHandler.RestoreVersion)
+			protected.GET("/version-diff/*path", versionHandler.DiffVersion)
 
 			protected.GET("/attachments/*path", attachmentHandler.Serve)
 
@@ -164,10 +174,12 @@ func main() {
 	{
 		publicAPI.GET("/notebooks", publicHandler.ListPublicNotebooks)
 		publicAPI.GET("/site-name", settingsHandler.GetSiteName)
+		publicAPI.GET("/base-path", publicHandler.GetPublicBasePath)
 		publicAPI.GET("/:notebook/tree", publicHandler.GetNotebookTree)
 		publicAPI.GET("/:notebook/note/*path", publicHandler.GetPublicNote)
 		publicAPI.GET("/:notebook/folder", publicHandler.GetFolderNotes)
 		publicAPI.GET("/:notebook/folder/*path", publicHandler.GetFolderNotes)
+		publicAPI.GET("/:notebook/attachment/*path", publicHandler.ServePublicAttachment)
 	}
 
 	// Serve static files for SPA
@@ -176,8 +188,18 @@ func main() {
 		r.Static("/assets", filepath.Join(webDistPath, "assets"))
 		r.StaticFile("/favicon.svg", filepath.Join(webDistPath, "favicon.svg"))
 
+		indexPath := filepath.Join(webDistPath, "index.html")
 		serveIndex := func(c *gin.Context) {
-			c.File(filepath.Join(webDistPath, "index.html"))
+			html, err := os.ReadFile(indexPath)
+			if err != nil {
+				c.String(http.StatusInternalServerError, "Failed to load page")
+				return
+			}
+			basePath := publicService.GetPublicBasePath()
+			injection := `<script>window.__VALENOTE_CONFIG__={publicBasePath:"` + basePath + `"}</script>`
+			modified := strings.Replace(string(html), "<head>", "<head>"+injection, 1)
+			c.Header("Content-Type", "text/html; charset=utf-8")
+			c.String(http.StatusOK, modified)
 		}
 
 		r.GET("/", func(c *gin.Context) {
@@ -188,9 +210,21 @@ func main() {
 		r.GET("/login", serveIndex)
 		r.GET("/public", serveIndex)
 		r.GET("/public/*path", serveIndex)
-	}
 
-	r.NoRoute(publicHandler.HandlePublicNote)
+		r.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
+			basePath := publicService.GetPublicBasePath()
+			if path == basePath || strings.HasPrefix(path, basePath+"/") {
+				serveIndex(c)
+				return
+			}
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		})
+	} else {
+		r.NoRoute(func(c *gin.Context) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		})
+	}
 
 	log.Printf("Starting ValeNote server on port %s", cfg.Server.Port)
 	if err := r.Run(":" + cfg.Server.Port); err != nil {

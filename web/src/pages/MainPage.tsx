@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Drawer, AppBar, Toolbar, Typography, IconButton, Divider, TextField, InputAdornment, CircularProgress } from '@mui/material';
-import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, SettingsApplications as AppSettingsIcon, LocalOffer as TagIcon } from '@mui/icons-material';
+import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, SettingsApplications as AppSettingsIcon } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { useNoteStore } from '../stores/noteStore';
 import { useSiteStore } from '../stores/siteStore';
@@ -13,16 +13,15 @@ import RenameDialog from '../components/RenameDialog';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
 import NotebookSettingsDialog from '../components/NotebookSettingsDialog';
 import SettingsDialog from '../components/SettingsDialog';
-import TagPanel from '../components/TagPanel';
+import SearchDialog from '../components/SearchDialog';
 import type { Notebook } from '../services/api';
 
 const DRAWER_WIDTH = 280;
 
 export default function MainPage() {
   const [drawerOpen, setDrawerOpen] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [appSettingsOpen, setAppSettingsOpen] = useState(false);
-  const [showTags, setShowTags] = useState(false);
 
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [createFolderParent, setCreateFolderParent] = useState('');
@@ -145,12 +144,9 @@ export default function MainPage() {
     }
   }, [notebooks]);
 
-  const filteredItems = searchQuery
-    ? fileItems.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.path.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : fileItems;
+  const handleSearchSelect = useCallback((path: string) => {
+    loadNote(path);
+  }, [loadNote]);
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
@@ -190,44 +186,33 @@ export default function MainPage() {
           <TextField
             fullWidth
             size="small"
-            placeholder="Search files..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search..."
+            onClick={() => setSearchDialogOpen(true)}
             slotProps={{
               input: {
+                readOnly: true,
                 startAdornment: (
                   <InputAdornment position="start">
                     <SearchIcon />
                   </InputAdornment>
                 ),
+                sx: { cursor: 'pointer' },
               },
             }}
+            sx={{ '& input': { cursor: 'pointer' } }}
           />
         </Box>
-        <Box sx={{ px: 1, pb: 1 }}>
-          <IconButton
-            size="small"
-            onClick={() => setShowTags(!showTags)}
-            color={showTags ? 'primary' : 'default'}
-            title="Toggle Tags"
-          >
-            <TagIcon />
-          </IconButton>
-        </Box>
         <Divider />
-        {showTags ? (
-          <Box sx={{ p: 1, overflow: 'auto', flexGrow: 1 }}>
-            <TagPanel onTagClick={() => setShowTags(false)} />
-          </Box>
-        ) : isLoading ? (
+        {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
           </Box>
         ) : (
           <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
             <FileTree
-              items={filteredItems}
+              items={fileItems}
               notebooks={notebooks}
+              currentNotePath={currentNote?.path}
               onFileSelect={handleFileSelect}
               onCreateNotebook={handleCreateNotebook}
               onCreateFolder={handleCreateFolder}
@@ -317,6 +302,13 @@ export default function MainPage() {
         open={appSettingsOpen}
         onClose={() => setAppSettingsOpen(false)}
         notebooks={notebooks}
+      />
+
+      <SearchDialog
+        open={searchDialogOpen}
+        onClose={() => setSearchDialogOpen(false)}
+        onSelect={handleSearchSelect}
+        fileItems={fileItems}
       />
     </Box>
   );

@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, List, ListItemText, ListItemButton, IconButton, Typography, Box, CircularProgress, Divider, Button, Chip, Snackbar, Alert } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, List, ListItemText, ListItemButton, IconButton, Typography, Box, CircularProgress, Divider, Button, Chip, Snackbar, Alert } from '@mui/material';
 import { Restore as RestoreIcon, Close as CloseIcon } from '@mui/icons-material';
 import api from '../services/api';
 
 interface Version {
-  id: number;
+  id: string;
   note_path: string;
   size: number;
   checksum: string;
-  username?: string;
   created_at: string;
 }
 
@@ -26,10 +25,13 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
   const [previewContent, setPreviewContent] = useState<string>('');
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (open && notePath) {
       loadVersions();
+      setSelectedVersion(null);
+      setPreviewContent('');
     }
   }, [open, notePath]);
 
@@ -50,7 +52,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
   const loadPreview = async (version: Version) => {
     setSelectedVersion(version);
     try {
-      const { data } = await api.get(`/version/${version.id}`);
+      const { data } = await api.get(`/version/${notePath}?id=${encodeURIComponent(version.id)}`);
       setPreviewContent(data.content);
     } catch (err) {
       console.error('Failed to load version content', err);
@@ -60,9 +62,10 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
 
   const handleRestore = async () => {
     if (!selectedVersion) return;
+    setConfirmOpen(false);
     setRestoring(true);
     try {
-      await api.post(`/version/${selectedVersion.id}/restore`);
+      await api.post(`/version/${notePath}?id=${encodeURIComponent(selectedVersion.id)}`);
       onRestore();
       onClose();
     } catch (err) {
@@ -84,7 +87,8 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="h6">Version History</Typography>
         <IconButton onClick={onClose} size="small">
@@ -111,12 +115,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
                 >
                   <ListItemText
                     primary={formatDate(version.created_at)}
-                    secondary={
-                      <>
-                        {version.username && `by ${version.username} · `}
-                        {formatSize(version.size)}
-                      </>
-                    }
+                    secondary={formatSize(version.size)}
                   />
                 </ListItemButton>
               ))}
@@ -135,7 +134,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
                 <Button
                   variant="contained"
                   startIcon={<RestoreIcon />}
-                  onClick={handleRestore}
+                  onClick={() => setConfirmOpen(true)}
                   disabled={restoring}
                   size="small"
                 >
@@ -179,5 +178,21 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
         </Alert>
       </Snackbar>
     </Dialog>
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>确认恢复</DialogTitle>
+        <DialogContent>
+          <Typography>
+            确定要恢复到 {selectedVersion && formatDate(selectedVersion.created_at)} 的版本吗？当前内容将被覆盖。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>取消</Button>
+          <Button onClick={handleRestore} variant="contained" color="primary" disabled={restoring}>
+            {restoring ? '恢复中...' : '确认恢复'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }

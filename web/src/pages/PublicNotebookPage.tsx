@@ -6,6 +6,7 @@ import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { publicApi, type PublicTreeItem, type Note } from '../services/api';
 import { useSiteStore } from '../stores/siteStore';
+import { PUBLIC_BASE_PATH } from '../constants';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 
 const DRAWER_WIDTH = 280;
@@ -146,7 +147,7 @@ export default function PublicNotebookPage() {
       }
     }
 
-    const newPath = cleanPath === notebook ? `/public/${notebook}` : `/public/${cleanPath}`;
+    const newPath = cleanPath === notebook ? `${PUBLIC_BASE_PATH}/${notebook}` : `${PUBLIC_BASE_PATH}/${cleanPath}`;
     navigate(newPath);
   }, [navigate, notebook, tree]);
 
@@ -162,7 +163,7 @@ export default function PublicNotebookPage() {
       }
     }
 
-    navigate(`/public/${cleanPath}`);
+    navigate(`${PUBLIC_BASE_PATH}/${cleanPath}`);
   }, [navigate, tree]);
 
   const handleExpandedItemsChange = useCallback((_event: React.SyntheticEvent | null, itemIds: string[]) => {
@@ -170,11 +171,11 @@ export default function PublicNotebookPage() {
   }, []);
 
   const breadcrumbs = location.pathname
-    .replace(/^\/public\//, '')
+    .replace(new RegExp(`^${PUBLIC_BASE_PATH}/`), '')
     .split('/')
     .filter(Boolean)
     .map((part, index, arr) => {
-      const path = `/public/${arr.slice(0, index + 1).join('/')}`;
+      const path = `${PUBLIC_BASE_PATH}/${arr.slice(0, index + 1).join('/')}`;
       const isLast = index === arr.length - 1;
       return isLast ? (
         <Typography key={path} color="text.primary">{part}</Typography>
@@ -254,7 +255,12 @@ export default function PublicNotebookPage() {
 
         {content?.type === 'note' && !Array.isArray(content.data) && (
           <Paper sx={{ p: 3 }}>
-            <MarkdownRenderer content={content.data.content || ''} />
+            <MarkdownRenderer
+              content={content.data.content || ''}
+              notePath={content.data.path}
+              isPublic={true}
+              notebook={notebook}
+            />
           </Paper>
         )}
 

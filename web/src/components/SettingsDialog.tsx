@@ -54,6 +54,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [remoteStorageOpen, setRemoteStorageOpen] = useState(false);
+  const [reservedPaths, setReservedPaths] = useState<string[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -65,10 +66,11 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     setLoading(true);
     try {
       const [pathRes, sysRes] = await Promise.all([
-        api.get<{ path: string }>('/settings/public-path'),
+        api.get<{ path: string; reserved_paths: string[] }>('/settings/public-path'),
         api.get<SystemSettings>('/settings/system'),
       ]);
       setPublicPath(pathRes.data.path);
+      setReservedPaths(pathRes.data.reserved_paths || []);
       setSystemSettings({
         version_retention_days: sysRes.data.version_retention_days ?? 30,
         version_max_count: sysRes.data.version_max_count ?? 100,
@@ -249,7 +251,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                   Reserved Paths (cannot be used):
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  /api, /ws, /mcp, /auth, /app, /assets, /settings, /admin
+                  {reservedPaths.length > 0 ? reservedPaths.map(p => `/${p}`).sort().join(', ') : 'Loading...'}
                 </Typography>
 
                 <Divider sx={{ my: 2 }} />
