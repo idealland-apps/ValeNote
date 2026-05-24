@@ -3,9 +3,10 @@ import {
   Box, Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions,
   List, ListItem, ListItemText, ListItemSecondaryAction, IconButton,
   Typography, Chip, Switch, FormControlLabel, Alert, CircularProgress,
-  Table, TableBody, TableCell, TableHead, TableRow, Radio, RadioGroup,
-  Paper, Tooltip, Collapse
+  Paper, Tooltip, Collapse, Autocomplete, Checkbox
 } from '@mui/material';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import {
   Delete as DeleteIcon, Edit as EditIcon, Refresh as RefreshIcon,
   ContentCopy as CopyIcon, ExpandMore as ExpandIcon, ExpandLess as CollapseIcon
@@ -32,7 +33,6 @@ interface AgentPermission {
 interface Notebook {
   id: number;
   name: string;
-  display_name: string;
 }
 
 interface Props {
@@ -47,7 +47,8 @@ export default function AgentManagement({ notebooks }: Props) {
   const [editingAgent, setEditingAgent] = useState<Partial<Agent> | null>(null);
   const [newAPIKey, setNewAPIKey] = useState<string | null>(null);
   const [expandedAgent, setExpandedAgent] = useState<number | null>(null);
-  const [permissions, setPermissions] = useState<Record<number, string>>({});
+  const [readwriteNotebooks, setReadwriteNotebooks] = useState<Notebook[]>([]);
+  const [readonlyNotebooks, setReadonlyNotebooks] = useState<Notebook[]>([]);
 
   useEffect(() => {
     loadAgents();
@@ -67,25 +68,48 @@ export default function AgentManagement({ notebooks }: Props) {
 
   const handleCreate = () => {
     setEditingAgent({ name: '', description: '', enabled: true });
-    setPermissions({});
+    setReadwriteNotebooks([]);
+    setReadonlyNotebooks([]);
     setNewAPIKey(null);
     setEditDialogOpen(true);
   };
 
   const handleEdit = (agent: Agent) => {
     setEditingAgent(agent);
-    const perms: Record<number, string> = {};
+    const rwNbs: Notebook[] = [];
+    const roNbs: Notebook[] = [];
     agent.permissions.forEach(p => {
       const nb = notebooks.find(n => n.name === p.notebook_name);
-      if (nb) perms[nb.id] = p.access_level;
+      if (nb) {
+        if (p.access_level === 'readwrite') {
+          rwNbs.push(nb);
+        } else if (p.access_level === 'read') {
+          roNbs.push(nb);
+        }
+      }
     });
-    setPermissions(perms);
+    setReadwriteNotebooks(rwNbs);
+    setReadonlyNotebooks(roNbs);
     setNewAPIKey(null);
     setEditDialogOpen(true);
   };
 
   const handleSave = async () => {
     if (!editingAgent?.name) return;
+
+    const buildPermissions = () => {
+      const perms: { notebook_id: number; access_level: string }[] = [];
+      const rwIds = new Set(readwriteNotebooks.map(nb => nb.id));
+      readwriteNotebooks.forEach(nb => {
+        perms.push({ notebook_id: nb.id, access_level: 'readwrite' });
+      });
+      readonlyNotebooks.forEach(nb => {
+        if (!rwIds.has(nb.id)) {
+          perms.push({ notebook_id: nb.id, access_level: 'read' });
+        }
+      });
+      return perms;
+    };
 
     try {
       if (editingAgent.id) {
@@ -95,12 +119,7 @@ export default function AgentManagement({ notebooks }: Props) {
           enabled: editingAgent.enabled,
         });
         await api.put(`/agents/${editingAgent.id}/permissions`, {
-          permissions: Object.entries(permissions)
-            .filter(([, level]) => level !== 'none')
-            .map(([nbId, level]) => ({
-              notebook_id: parseInt(nbId),
-              access_level: level,
-            })),
+          permissions: buildPermissions(),
         });
       } else {
         const { data } = await api.post<{ agent: Agent; api_key: string }>('/agents', {
@@ -110,12 +129,7 @@ export default function AgentManagement({ notebooks }: Props) {
         setNewAPIKey(data.api_key);
         if (data.agent.id) {
           await api.put(`/agents/${data.agent.id}/permissions`, {
-            permissions: Object.entries(permissions)
-              .filter(([, level]) => level !== 'none')
-              .map(([nbId, level]) => ({
-                notebook_id: parseInt(nbId),
-                access_level: level,
-              })),
+            permissions: buildPermissions(),
           });
         }
       }
@@ -306,46 +320,61 @@ export default function AgentManagement({ notebooks }: Props) {
               <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
                 Notebook Permissions
               </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Notebook</TableCell>
-                    <TableCell align="center">None</TableCell>
-                    <TableCell align="center">Read</TableCell>
-                    <TableCell align="center">Read/Write</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {notebooks.map((nb) => (
-                    <TableRow key={nb.id}>
-                      <TableCell>{nb.display_name || nb.name}</TableCell>
-                      <TableCell align="center" padding="checkbox">
-                        <RadioGroup
-                          row
-                          value={permissions[nb.id] || 'none'}
-                          onChange={(e) => setPermissions({ ...permissions, [nb.id]: e.target.value })}
-                        >
-                          <Radio value="none" size="small" />
-                        </RadioGroup>
-                      </TableCell>
-                      <TableCell align="center" padding="checkbox">
-                        <Radio
-                          checked={permissions[nb.id] === 'read'}
-                          onChange={() => setPermissions({ ...permissions, [nb.id]: 'read' })}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell align="center" padding="checkbox">
-                        <Radio
-                          checked={permissions[nb.id] === 'readwrite'}
-                          onChange={() => setPermissions({ ...permissions, [nb.id]: 'readwrite' })}
-                          size="small"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <Autocomplete
+                multiple
+                options={notebooks}
+                disableCloseOnSelect
+                getOptionLabel={(option) => option.name}
+                value={readwriteNotebooks}
+                onChange={(_, newValue) => setReadwriteNotebooks(newValue)}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                renderOption={(props, option, { selected }) => {
+                  const { key, ...rest } = props;
+                  return (
+                    <li key={key} {...rest}>
+                      <Checkbox
+                        icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
+                        checkedIcon={<CheckBoxIcon fontSize="small" />}
+                        style={{ marginRight: 8 }}
+                        checked={selected}
+                      />
+                      {option.name}
+                    </li>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Read/Write Access" placeholder="Select notebooks" margin="normal" />
+                )}
+              />
+              <Autocomplete
+                multiple
+                options={notebooks}
+                disableCloseOnSelect
+                getOptionLabel={(option) => option.name}
+                value={readonlyNotebooks}
+                onChange={(_, newValue) => setReadonlyNotebooks(newValue)}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                renderOption={(props, option, { selected }) => {
+                  const { key, ...rest } = props;
+                  return (
+                    <li key={key} {...rest}>
+                      <Checkbox
+                        icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
+                        checkedIcon={<CheckBoxIcon fontSize="small" />}
+                        style={{ marginRight: 8 }}
+                        checked={selected}
+                      />
+                      {option.name}
+                    </li>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Read-Only Access" placeholder="Select notebooks" margin="normal" />
+                )}
+              />
+              <Typography variant="caption" color="text.secondary">
+                If a notebook appears in both lists, Read/Write takes precedence.
+              </Typography>
             </>
           )}
         </DialogContent>

@@ -5,8 +5,11 @@ import { getTheme } from './theme';
 import { useAuthStore } from './stores/authStore';
 import { useWebSocketStore } from './stores/websocketStore';
 import { useSettingsStore } from './stores/settingsStore';
+import { useSiteStore } from './stores/siteStore';
 import LoginPage from './pages/LoginPage';
 import MainPage from './pages/MainPage';
+import PublicIndexPage from './pages/PublicIndexPage';
+import PublicNotebookPage from './pages/PublicNotebookPage';
 import NotificationBar from './components/NotificationBar';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -45,13 +48,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   const { checkAuth } = useAuthStore();
   const { themeMode } = useSettingsStore();
+  const { siteName, loadSiteName } = useSiteStore();
   const [systemDark, setSystemDark] = useState(
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
 
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]);
+    loadSiteName();
+  }, [checkAuth, loadSiteName]);
+
+  useEffect(() => {
+    document.title = siteName;
+  }, [siteName]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -75,6 +84,8 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/public" element={<PublicIndexPage />} />
+          <Route path="/public/:notebook/*" element={<PublicNotebookPage />} />
           <Route
             path="/*"
             element={

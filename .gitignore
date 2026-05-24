@@ -1,9 +1,14 @@
+# Environment
+.env
+.env.*
+
 # Binaries
 server
 *.exe
 
 # Runtime data
 data/
+notes/
 
 # Go
 *.test

@@ -57,7 +57,13 @@ The frontend will start at `http://localhost:5173`.
 
 ### 4. Access the app
 
-Open `http://localhost:5173` in your browser. Register a new account to get started.
+Open `http://localhost:5173` in your browser.
+
+**Default admin credentials:**
+- Username: `admin`
+- Password: `admin123abc`
+
+Please change the default password after first login via Settings > User Management.
 
 ## Configuration
 

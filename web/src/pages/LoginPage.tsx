@@ -7,20 +7,18 @@ import {
   TextField,
   Button,
   Typography,
-  Tab,
-  Tabs,
   Alert,
 } from '@mui/material';
 import { useAuthStore } from '../stores/authStore';
+import { useSiteStore } from '../stores/siteStore';
 
 export default function LoginPage() {
-  const [tab, setTab] = useState(0);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, register } = useAuthStore();
+  const { login } = useAuthStore();
+  const { siteName } = useSiteStore();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,11 +27,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      if (tab === 0) {
-        await login(username, password);
-      } else {
-        await register(username, password, email || undefined);
-      }
+      await login(username, password);
       navigate('/');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
@@ -56,12 +50,8 @@ export default function LoginPage() {
       <Card sx={{ width: 400, maxWidth: '90%' }}>
         <CardContent>
           <Typography variant="h4" align="center" gutterBottom>
-            ValeNote
+            {siteName}
           </Typography>
-          <Tabs value={tab} onChange={(_, v) => setTab(v)} centered sx={{ mb: 2 }}>
-            <Tab label="Login" />
-            <Tab label="Register" />
-          </Tabs>
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
@@ -76,16 +66,6 @@ export default function LoginPage() {
               margin="normal"
               required
             />
-            {tab === 1 && (
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                margin="normal"
-              />
-            )}
             <TextField
               fullWidth
               label="Password"
@@ -103,7 +83,7 @@ export default function LoginPage() {
               sx={{ mt: 2 }}
               disabled={loading}
             >
-              {tab === 0 ? 'Login' : 'Register'}
+              Login
             </Button>
           </form>
         </CardContent>

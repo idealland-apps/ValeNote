@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/anthropics/valenote/internal/config"
 	"github.com/anthropics/valenote/internal/handler"
@@ -46,6 +47,7 @@ func main() {
 	remoteSyncService := service.NewRemoteSyncService(db, cfg)
 	remoteSyncService.StartScheduler()
 	agentService := service.NewAgentService(db)
+	userService := service.NewUserService(db)
 
 	mcpServer := mcp.NewServer(noteService, searchService)
 
@@ -62,6 +64,7 @@ func main() {
 	tagHandler := handler.NewTagHandler(searchService)
 	agentHandler := handler.NewAgentHandler(agentService)
 	settingsHandler := handler.NewSettingsHandler(db)
+	userHandler := handler.NewUserHandler(userService, authService)
 
 	r := gin.Default()
 
@@ -76,7 +79,6 @@ func main() {
 	{
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 		}
 
@@ -97,6 +99,12 @@ func main() {
 			protected.GET("/notes/*path", noteHandler.GetNote)
 			protected.PUT("/notes/*path", noteHandler.UpdateNote)
 			protected.DELETE("/notes/*path", noteHandler.DeleteNote)
+
+			protected.GET("/files", noteHandler.ListFiles)
+			protected.POST("/files/move", noteHandler.MoveFile)
+			protected.POST("/files/copy", noteHandler.CopyFile)
+			protected.POST("/folders", noteHandler.CreateFolder)
+			protected.DELETE("/folders/*path", noteHandler.DeleteFolder)
 
 			protected.GET("/search", noteHandler.SearchNotes)
 			protected.GET("/tags", tagHandler.ListTags)
@@ -138,12 +146,49 @@ func main() {
 			protected.POST("/agents/:id/regenerate-key", agentHandler.RegenerateAPIKey)
 			protected.GET("/agents/:id/permissions", agentHandler.GetPermissions)
 			protected.PUT("/agents/:id/permissions", agentHandler.SetPermissions)
+
+			protected.GET("/users", userHandler.ListUsers)
+			protected.POST("/users", userHandler.CreateUser)
+			protected.PUT("/users/:id", userHandler.UpdateUser)
+			protected.PUT("/users/:id/password", userHandler.UpdatePassword)
+			protected.DELETE("/users/:id", userHandler.DeleteUser)
 		}
 	}
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Public API routes (no auth required)
+	publicAPI := r.Group("/api/v1/public")
+	{
+		publicAPI.GET("/notebooks", publicHandler.ListPublicNotebooks)
+		publicAPI.GET("/site-name", settingsHandler.GetSiteName)
+		publicAPI.GET("/:notebook/tree", publicHandler.GetNotebookTree)
+		publicAPI.GET("/:notebook/note/*path", publicHandler.GetPublicNote)
+		publicAPI.GET("/:notebook/folder", publicHandler.GetFolderNotes)
+		publicAPI.GET("/:notebook/folder/*path", publicHandler.GetFolderNotes)
+	}
+
+	// Serve static files for SPA
+	webDistPath := filepath.Join("web", "dist")
+	if _, err := os.Stat(webDistPath); err == nil {
+		r.Static("/assets", filepath.Join(webDistPath, "assets"))
+		r.StaticFile("/favicon.svg", filepath.Join(webDistPath, "favicon.svg"))
+
+		serveIndex := func(c *gin.Context) {
+			c.File(filepath.Join(webDistPath, "index.html"))
+		}
+
+		r.GET("/", func(c *gin.Context) {
+			c.Redirect(302, "/app")
+		})
+		r.GET("/app", serveIndex)
+		r.GET("/app/*path", serveIndex)
+		r.GET("/login", serveIndex)
+		r.GET("/public", serveIndex)
+		r.GET("/public/*path", serveIndex)
+	}
 
 	r.NoRoute(publicHandler.HandlePublicNote)
 

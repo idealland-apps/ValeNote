@@ -15,12 +15,6 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	return &AuthHandler{authService: authService}
 }
 
-type RegisterRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=50"`
-	Password string `json:"password" binding:"required,min=6"`
-	Email    string `json:"email" binding:"omitempty,email"`
-}
-
 type LoginRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
@@ -29,39 +23,6 @@ type LoginRequest struct {
 type AuthResponse struct {
 	Token string      `json:"token"`
 	User  interface{} `json:"user"`
-}
-
-func (h *AuthHandler) Register(c *gin.Context) {
-	var req RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	user, err := h.authService.Register(req.Username, req.Password, req.Email)
-	if err != nil {
-		if err == service.ErrUserExists {
-			c.JSON(http.StatusConflict, gin.H{"error": "username already exists"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
-		return
-	}
-
-	token, _, err := h.authService.Login(req.Username, req.Password)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, AuthResponse{
-		Token: token,
-		User: gin.H{
-			"id":       user.ID,
-			"username": user.Username,
-			"email":    user.Email,
-		},
-	})
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -83,6 +44,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"id":       user.ID,
 			"username": user.Username,
 			"email":    user.Email,
+			"is_admin": user.IsAdmin,
 		},
 	})
 }
@@ -99,5 +61,6 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"id":       user.ID,
 		"username": user.Username,
 		"email":    user.Email,
+		"is_admin": user.IsAdmin,
 	})
 }

@@ -25,14 +25,10 @@ func (h *PublicHandler) HandlePublicNote(c *gin.Context) {
 		return
 	}
 
-	remaining := strings.TrimPrefix(path, basePath+"/")
+	remaining := strings.TrimPrefix(path, basePath)
+	remaining = strings.TrimPrefix(remaining, "/")
 	if remaining == "" {
-		notebooks, err := h.publicService.GetPublicNotebooks()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list notebooks"})
-			return
-		}
-		c.JSON(http.StatusOK, notebooks)
+		c.JSON(http.StatusOK, gin.H{"message": "Please access a specific notebook, e.g., /public/notebook-name"})
 		return
 	}
 
@@ -118,4 +114,53 @@ func (h *PublicHandler) SetNotebookPublic(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"name": name, "is_public": req.IsPublic})
+}
+
+func (h *PublicHandler) ListPublicNotebooks(c *gin.Context) {
+	notebooks, err := h.publicService.GetPublicNotebooks()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list notebooks"})
+		return
+	}
+	c.JSON(http.StatusOK, notebooks)
+}
+
+func (h *PublicHandler) GetNotebookTree(c *gin.Context) {
+	notebook := c.Param("notebook")
+
+	tree, err := h.publicService.GetNotebookTree(notebook)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "notebook not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, tree)
+}
+
+func (h *PublicHandler) GetPublicNote(c *gin.Context) {
+	notebook := c.Param("notebook")
+	path := c.Param("path")
+	path = strings.TrimPrefix(path, "/")
+
+	note, err := h.publicService.GetPublicNote(notebook, path)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "note not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, note)
+}
+
+func (h *PublicHandler) GetFolderNotes(c *gin.Context) {
+	notebook := c.Param("notebook")
+	path := c.Param("path")
+	path = strings.TrimPrefix(path, "/")
+
+	notes, err := h.publicService.GetFolderNotes(notebook, path)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "folder not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, notes)
 }

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack } from '@mui/material';
+import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack, Snackbar, Alert } from '@mui/material';
 import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, Delete as DeleteIcon, History as HistoryIcon } from '@mui/icons-material';
 import { useNoteStore } from '../stores/noteStore';
 import { useWebSocketStore } from '../stores/websocketStore';
 import type { Note } from '../services/api';
-import MilkdownEditor from './MilkdownEditor';
+import MarkdownRenderer from './MarkdownRenderer';
 import VersionHistoryDialog from './VersionHistoryDialog';
 import ConflictDialog from './ConflictDialog';
 import { EditorIndicator } from './NotificationBar';
@@ -18,6 +18,7 @@ export default function NoteEditor({ note }: Props) {
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const { updateNote, deleteNote, setCurrentNote, loadNote } = useNoteStore();
   const { focusNote, blurNote, conflict, clearConflict } = useWebSocketStore();
 
@@ -35,6 +36,9 @@ export default function NoteEditor({ note }: Props) {
     setSaving(true);
     try {
       await updateNote(note.path, content);
+      setSnackbar({ open: true, message: '保存成功', severity: 'success' });
+    } catch {
+      setSnackbar({ open: true, message: '保存失败', severity: 'error' });
     } finally {
       setSaving(false);
     }
@@ -100,12 +104,24 @@ export default function NoteEditor({ note }: Props) {
       </Box>
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
         {mode === 'edit' ? (
-          <MilkdownEditor value={content} onChange={setContent} notePath={note.path} />
-        ) : (
-          <Box
-            sx={{ '& h1, & h2, & h3': { mt: 2, mb: 1 }, '& p': { mb: 1 }, '& code': { bgcolor: 'grey.100', px: 0.5, borderRadius: 0.5 } }}
-            dangerouslySetInnerHTML={{ __html: content }}
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              outline: 'none',
+              resize: 'none',
+              fontFamily: 'monospace',
+              fontSize: '14px',
+              lineHeight: '1.6',
+              padding: '8px',
+              boxSizing: 'border-box',
+            }}
           />
+        ) : (
+          <MarkdownRenderer content={content} />
         )}
       </Box>
       <VersionHistoryDialog
@@ -121,6 +137,16 @@ export default function NoteEditor({ note }: Props) {
         localContent={content}
         onResolve={handleConflictResolve}
       />
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Paper>
   );
 }

@@ -2,15 +2,106 @@ import { createTheme } from '@mui/material/styles';
 import type { ThemeOptions } from '@mui/material/styles';
 
 const baseTheme: ThemeOptions = {
+  shape: {
+    borderRadius: 12,
+  },
   typography: {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          overscrollBehavior: 'none',
+        },
+      },
+    },
     MuiButton: {
       styleOverrides: {
         root: {
           textTransform: 'none',
         },
+      },
+      defaultProps: {
+        disableElevation: true,
+      },
+    },
+    MuiToggleButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+        },
+      },
+    },
+    MuiTooltip: {
+      defaultProps: {
+        enterDelay: 500,
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+        },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          borderRadius: '8px',
+        },
+        list: {
+          padding: '4px 0',
+        },
+      },
+      defaultProps: {
+        slotProps: {
+          paper: {
+            elevation: 3,
+          },
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          borderRadius: '8px',
+          margin: '0px 4px',
+          paddingLeft: '8px',
+          paddingRight: '8px',
+        },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: {
+          paddingTop: 0,
+        },
+      },
+    },
+    MuiFilledInput: {
+      styleOverrides: {
+        root: {
+          '&::before, &::after': {
+            borderBottom: 'none',
+          },
+          '&:hover:not(.Mui-disabled, .Mui-error):before': {
+            borderBottom: 'none',
+          },
+          borderRadius: 12,
+        },
+      },
+    },
+    MuiSkeleton: {
+      defaultProps: {
+        animation: 'wave',
       },
     },
   },

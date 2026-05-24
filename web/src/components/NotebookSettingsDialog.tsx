@@ -11,7 +11,6 @@ interface Props {
 }
 
 export default function NotebookSettingsDialog({ open, onClose, notebook, onSave }: Props) {
-  const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -21,7 +20,6 @@ export default function NotebookSettingsDialog({ open, onClose, notebook, onSave
 
   useEffect(() => {
     if (notebook) {
-      setDisplayName(notebook.display_name || '');
       setDescription(notebook.description || '');
       setIsPublic(notebook.is_public || false);
       setConfirmDelete(false);
@@ -35,7 +33,6 @@ export default function NotebookSettingsDialog({ open, onClose, notebook, onSave
     setError('');
     try {
       await notebookApi.update(notebook.name, {
-        display_name: displayName.trim() || undefined,
         description: description.trim() || undefined,
         is_public: isPublic,
       });
@@ -83,14 +80,6 @@ export default function NotebookSettingsDialog({ open, onClose, notebook, onSave
       <DialogContent>
         <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {error && <Alert severity="error">{error}</Alert>}
-
-          <TextField
-            label="Display Name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder={notebook.name}
-            fullWidth
-          />
 
           <TextField
             label="Description"

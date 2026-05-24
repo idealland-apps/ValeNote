@@ -29,7 +29,6 @@ func (h *NoteHandler) ListNotebooks(c *gin.Context) {
 
 type CreateNotebookRequest struct {
 	Name        string `json:"name" binding:"required"`
-	DisplayName string `json:"display_name"`
 	Description string `json:"description"`
 }
 
@@ -40,7 +39,7 @@ func (h *NoteHandler) CreateNotebook(c *gin.Context) {
 		return
 	}
 
-	notebook, err := h.noteService.CreateNotebook(req.Name, req.DisplayName, req.Description)
+	notebook, err := h.noteService.CreateNotebook(req.Name, req.Description)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -60,7 +59,6 @@ func (h *NoteHandler) GetNotebook(c *gin.Context) {
 }
 
 type UpdateNotebookRequest struct {
-	DisplayName *string `json:"display_name"`
 	Description *string `json:"description"`
 	IsPublic    *bool   `json:"is_public"`
 }
@@ -73,7 +71,7 @@ func (h *NoteHandler) UpdateNotebook(c *gin.Context) {
 		return
 	}
 
-	notebook, err := h.noteService.UpdateNotebook(name, req.DisplayName, req.Description, req.IsPublic)
+	notebook, err := h.noteService.UpdateNotebook(name, req.Description, req.IsPublic)
 	if err != nil {
 		if err == service.ErrNotebookNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "notebook not found"})
@@ -223,4 +221,115 @@ func (h *NoteHandler) SearchNotes(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, notes)
+}
+
+type CreateFolderRequest struct {
+	Path string `json:"path" binding:"required"`
+}
+
+func (h *NoteHandler) CreateFolder(c *gin.Context) {
+	var req CreateFolderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.noteService.CreateFolder(req.Path); err != nil {
+		if err == service.ErrInvalidPath || err == service.ErrPathEscape {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"path": req.Path})
+}
+
+func (h *NoteHandler) DeleteFolder(c *gin.Context) {
+	path := c.Param("path")
+
+	if err := h.noteService.DeleteFolder(path); err != nil {
+		if err == service.ErrNoteNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "folder not found"})
+			return
+		}
+		if err == service.ErrInvalidPath || err == service.ErrPathEscape {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusNoContent, nil)
+}
+
+type MoveFileRequest struct {
+	Source string `json:"source" binding:"required"`
+	Target string `json:"target" binding:"required"`
+}
+
+func (h *NoteHandler) MoveFile(c *gin.Context) {
+	var req MoveFileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.noteService.MoveFile(req.Source, req.Target); err != nil {
+		if err == service.ErrNoteNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "source not found"})
+			return
+		}
+		if err == service.ErrInvalidPath || err == service.ErrPathEscape {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"source": req.Source, "target": req.Target})
+}
+
+type CopyFileRequest struct {
+	Source string `json:"source" binding:"required"`
+	Target string `json:"target" binding:"required"`
+}
+
+func (h *NoteHandler) CopyFile(c *gin.Context) {
+	var req CopyFileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.noteService.CopyFile(req.Source, req.Target); err != nil {
+		if err == service.ErrNoteNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "source not found"})
+			return
+		}
+		if err == service.ErrInvalidPath || err == service.ErrPathEscape {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"source": req.Source, "target": req.Target})
+}
+
+func (h *NoteHandler) ListFiles(c *gin.Context) {
+	notebook := c.Query("notebook")
+	includeFolders := c.Query("include_folders") == "true"
+
+	items, err := h.noteService.ListFiles(notebook, includeFolders)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list files"})
+		return
+	}
+
+	c.JSON(http.StatusOK, items)
 }

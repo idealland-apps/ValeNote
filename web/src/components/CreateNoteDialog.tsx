@@ -46,7 +46,7 @@ export default function CreateNoteDialog({ open, onClose, notebooks }: Props) {
           >
             {notebooks.map((nb) => (
               <MenuItem key={nb.name} value={nb.name}>
-                {nb.display_name || nb.name}
+                {nb.name}
               </MenuItem>
             ))}
           </TextField>

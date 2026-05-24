@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"html/template"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -14,7 +16,14 @@ import (
 var reservedPaths = map[string]bool{
 	"api": true, "ws": true, "mcp": true, "auth": true,
 	"app": true, "assets": true, "settings": true, "admin": true,
-	"health": true,
+	"health": true, "public": true, "login": true,
+}
+
+type PublicTreeItem struct {
+	Path     string           `json:"path"`
+	Name     string           `json:"name"`
+	Type     string           `json:"type"`
+	Children []PublicTreeItem `json:"children,omitempty"`
 }
 
 type PublicService struct {
@@ -93,7 +102,11 @@ func (s *PublicService) GetPublicNote(notebookName, notePath string) (*Note, err
 		fullPath = notebookName + "/" + notePath
 	}
 
-	return s.noteService.GetNote(fullPath)
+	note, err := s.noteService.GetNote(fullPath)
+	if err != nil && !strings.HasSuffix(fullPath, ".md") {
+		note, err = s.noteService.GetNote(fullPath + ".md")
+	}
+	return note, err
 }
 
 func (s *PublicService) ListPublicNotes(notebookName string) ([]Note, error) {
@@ -102,6 +115,99 @@ func (s *PublicService) ListPublicNotes(notebookName string) ([]Note, error) {
 	}
 
 	return s.noteService.ListNotes(notebookName, true)
+}
+
+func (s *PublicService) GetNotebookTree(notebookName string) (*PublicTreeItem, error) {
+	if !s.IsNotebookPublic(notebookName) {
+		return nil, ErrNotebookNotFound
+	}
+
+	basePath := filepath.Join(s.cfg.Notes.RootPath, notebookName)
+	root := &PublicTreeItem{
+		Path:     notebookName,
+		Name:     notebookName,
+		Type:     "folder",
+		Children: []PublicTreeItem{},
+	}
+
+	err := s.buildTree(basePath, notebookName, root)
+	if err != nil {
+		return nil, err
+	}
+
+	return root, nil
+}
+
+func (s *PublicService) buildTree(fsPath, relativePath string, parent *PublicTreeItem) error {
+	entries, err := os.ReadDir(fsPath)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		childRelPath := relativePath + "/" + name
+		childFsPath := filepath.Join(fsPath, name)
+
+		if entry.IsDir() {
+			folder := PublicTreeItem{
+				Path:     childRelPath,
+				Name:     name,
+				Type:     "folder",
+				Children: []PublicTreeItem{},
+			}
+			s.buildTree(childFsPath, childRelPath, &folder)
+			parent.Children = append(parent.Children, folder)
+		} else if strings.HasSuffix(name, ".md") {
+			file := PublicTreeItem{
+				Path: childRelPath,
+				Name: name,
+				Type: "file",
+			}
+			parent.Children = append(parent.Children, file)
+		}
+	}
+
+	return nil
+}
+
+func (s *PublicService) GetFolderNotes(notebookName, folderPath string) ([]Note, error) {
+	if !s.IsNotebookPublic(notebookName) {
+		return nil, ErrNotebookNotFound
+	}
+
+	fullPath := notebookName
+	if folderPath != "" {
+		fullPath = notebookName + "/" + folderPath
+	}
+
+	basePath := filepath.Join(s.cfg.Notes.RootPath, fullPath)
+	entries, err := os.ReadDir(basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var notes []Note
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		notePath := fullPath + "/" + entry.Name()
+		note, err := s.noteService.GetNote(notePath)
+		if err != nil {
+			continue
+		}
+
+		notes = append(notes, Note{
+			Path:      note.Path,
+			Title:     note.Title,
+			Size:      note.Size,
+			UpdatedAt: note.UpdatedAt,
+		})
+	}
+
+	return notes, nil
 }
 
 func (s *PublicService) RenderNoteHTML(note *Note) (string, error) {

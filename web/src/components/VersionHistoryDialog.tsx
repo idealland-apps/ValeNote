@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, List, ListItemText, ListItemButton, IconButton, Typography, Box, CircularProgress, Divider, Button, Chip } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, List, ListItemText, ListItemButton, IconButton, Typography, Box, CircularProgress, Divider, Button, Chip, Snackbar, Alert } from '@mui/material';
 import { Restore as RestoreIcon, Close as CloseIcon } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -25,6 +25,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [restoring, setRestoring] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && notePath) {
@@ -34,11 +35,13 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
 
   const loadVersions = async () => {
     setLoading(true);
+    setError(null);
     try {
       const { data } = await api.get<Version[]>(`/versions/${notePath}`);
       setVersions(data || []);
-    } catch (error) {
-      console.error('Failed to load versions', error);
+    } catch (err) {
+      console.error('Failed to load versions', err);
+      setError('加载版本历史失败');
     } finally {
       setLoading(false);
     }
@@ -49,8 +52,9 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
     try {
       const { data } = await api.get(`/version/${version.id}`);
       setPreviewContent(data.content);
-    } catch (error) {
-      console.error('Failed to load version content', error);
+    } catch (err) {
+      console.error('Failed to load version content', err);
+      setError('加载版本内容失败');
     }
   };
 
@@ -61,8 +65,9 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
       await api.post(`/version/${selectedVersion.id}/restore`);
       onRestore();
       onClose();
-    } catch (error) {
-      console.error('Failed to restore version', error);
+    } catch (err) {
+      console.error('Failed to restore version', err);
+      setError('恢复版本失败');
     } finally {
       setRestoring(false);
     }
@@ -163,6 +168,16 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
           )}
         </Box>
       </DialogContent>
+      <Snackbar
+        open={!!error}
+        autoHideDuration={4000}
+        onClose={() => setError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      </Snackbar>
     </Dialog>
   );
 }

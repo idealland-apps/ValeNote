@@ -7,8 +7,9 @@ import (
 type User struct {
 	ID           int64     `gorm:"primaryKey" json:"id"`
 	Username     string    `gorm:"uniqueIndex;not null;size:50" json:"username"`
-	Email        string    `gorm:"uniqueIndex;size:255" json:"email,omitempty"`
+	Email        *string   `gorm:"uniqueIndex;size:255" json:"email,omitempty"`
 	PasswordHash string    `gorm:"not null" json:"-"`
+	IsAdmin      bool      `gorm:"default:false" json:"is_admin"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -16,7 +17,6 @@ type User struct {
 type Notebook struct {
 	ID          int64     `gorm:"primaryKey" json:"id"`
 	Name        string    `gorm:"uniqueIndex;not null;size:100" json:"name"`
-	DisplayName string    `gorm:"size:200" json:"display_name"`
 	Description string    `json:"description,omitempty"`
 	IsPublic    bool      `gorm:"default:false" json:"is_public"`
 	CreatedAt   time.Time `json:"created_at"`

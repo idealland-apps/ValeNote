@@ -2,6 +2,7 @@ package model
 
 import (
 	"github.com/anthropics/valenote/internal/config"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -36,7 +37,13 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	// Drop display_name column if exists (migration for simplified naming model)
+	if db.Migrator().HasColumn(&Notebook{}, "display_name") {
+		db.Migrator().DropColumn(&Notebook{}, "display_name")
+	}
+
 	initDefaultSettings(db)
+	initDefaultAdmin(db)
 
 	return db, nil
 }
@@ -51,4 +58,24 @@ func initDefaultSettings(db *gorm.DB) {
 	for key, value := range defaults {
 		db.FirstOrCreate(&Setting{Key: key, Value: value}, Setting{Key: key})
 	}
+}
+
+func initDefaultAdmin(db *gorm.DB) {
+	var count int64
+	db.Model(&User{}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("admin123abc"), 12)
+	if err != nil {
+		return
+	}
+
+	admin := &User{
+		Username:     "admin",
+		PasswordHash: string(hash),
+		IsAdmin:      true,
+	}
+	db.Create(admin)
 }

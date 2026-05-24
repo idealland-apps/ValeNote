@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/anthropics/valenote/internal/middleware"
 	"github.com/anthropics/valenote/internal/service"
@@ -22,7 +23,7 @@ func NewVersionHandler(versionService *service.VersionService, noteService *serv
 }
 
 func (h *VersionHandler) ListVersions(c *gin.Context) {
-	path := c.Param("path")
+	path := strings.TrimPrefix(c.Param("path"), "/")
 	limitStr := c.DefaultQuery("limit", "50")
 	limit, _ := strconv.Atoi(limitStr)
 

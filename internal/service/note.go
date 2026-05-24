@@ -42,6 +42,14 @@ type Note struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type FileItem struct {
+	Path      string    `json:"path"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"` // "file" or "folder"
+	Size      int64     `json:"size,omitempty"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
+}
+
 type CreateNoteRequest struct {
 	Path    string   `json:"path" binding:"required"`
 	Title   string   `json:"title"`
@@ -81,14 +89,13 @@ func (s *NoteService) ListNotebooks() ([]model.Notebook, error) {
 	return notebooks, nil
 }
 
-func (s *NoteService) CreateNotebook(name, displayName, description string) (*model.Notebook, error) {
+func (s *NoteService) CreateNotebook(name, description string) (*model.Notebook, error) {
 	if err := os.MkdirAll(filepath.Join(s.cfg.Notes.RootPath, name), 0755); err != nil {
 		return nil, err
 	}
 
 	notebook := &model.Notebook{
 		Name:        name,
-		DisplayName: displayName,
 		Description: description,
 	}
 
@@ -107,15 +114,12 @@ func (s *NoteService) GetNotebook(name string) (*model.Notebook, error) {
 	return &notebook, nil
 }
 
-func (s *NoteService) UpdateNotebook(name string, displayName, description *string, isPublic *bool) (*model.Notebook, error) {
+func (s *NoteService) UpdateNotebook(name string, description *string, isPublic *bool) (*model.Notebook, error) {
 	var notebook model.Notebook
 	if err := s.db.Where("name = ?", name).First(&notebook).Error; err != nil {
 		return nil, ErrNotebookNotFound
 	}
 
-	if displayName != nil {
-		notebook.DisplayName = *displayName
-	}
 	if description != nil {
 		notebook.Description = *description
 	}
@@ -498,4 +502,222 @@ func extractTitleFromContent(content []byte) string {
 func sha256sum(data []byte) string {
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
+}
+
+func (s *NoteService) CreateFolder(path string) error {
+	cleanPath, err := s.ValidatePath(path)
+	if err != nil {
+		return err
+	}
+
+	fullPath := filepath.Join(s.cfg.Notes.RootPath, cleanPath)
+	return os.MkdirAll(fullPath, 0755)
+}
+
+func (s *NoteService) DeleteFolder(path string) error {
+	cleanPath, err := s.ValidatePath(path)
+	if err != nil {
+		return err
+	}
+
+	fullPath := filepath.Join(s.cfg.Notes.RootPath, cleanPath)
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrNoteNotFound
+		}
+		return err
+	}
+
+	if !info.IsDir() {
+		return ErrInvalidPath
+	}
+
+	s.db.Where("path LIKE ?", cleanPath+"/%").Delete(&model.NoteMetadata{})
+
+	return os.RemoveAll(fullPath)
+}
+
+func (s *NoteService) MoveFile(source, target string) error {
+	sourcePath, err := s.ValidatePath(source)
+	if err != nil {
+		return err
+	}
+	targetPath, err := s.ValidatePath(target)
+	if err != nil {
+		return err
+	}
+
+	fullSource := filepath.Join(s.cfg.Notes.RootPath, sourcePath)
+	fullTarget := filepath.Join(s.cfg.Notes.RootPath, targetPath)
+
+	if _, err := os.Stat(fullSource); os.IsNotExist(err) {
+		return ErrNoteNotFound
+	}
+
+	if err := os.MkdirAll(filepath.Dir(fullTarget), 0755); err != nil {
+		return err
+	}
+
+	if err := os.Rename(fullSource, fullTarget); err != nil {
+		return err
+	}
+
+	info, _ := os.Stat(fullTarget)
+	if info != nil && !info.IsDir() {
+		s.db.Model(&model.NoteMetadata{}).Where("path = ?", sourcePath).Update("path", targetPath)
+	} else {
+		s.db.Model(&model.NoteMetadata{}).Where("path LIKE ?", sourcePath+"/%").Updates(map[string]interface{}{
+			"path": gorm.Expr("REPLACE(path, ?, ?)", sourcePath+"/", targetPath+"/"),
+		})
+	}
+
+	return nil
+}
+
+func (s *NoteService) CopyFile(source, target string) error {
+	sourcePath, err := s.ValidatePath(source)
+	if err != nil {
+		return err
+	}
+	targetPath, err := s.ValidatePath(target)
+	if err != nil {
+		return err
+	}
+
+	fullSource := filepath.Join(s.cfg.Notes.RootPath, sourcePath)
+	fullTarget := filepath.Join(s.cfg.Notes.RootPath, targetPath)
+
+	info, err := os.Stat(fullSource)
+	if os.IsNotExist(err) {
+		return ErrNoteNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		return s.copyDir(fullSource, fullTarget, sourcePath, targetPath)
+	}
+
+	return s.copyFileAndIndex(fullSource, fullTarget, targetPath)
+}
+
+func (s *NoteService) copyDir(src, dst, srcRelPath, dstRelPath string) error {
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+		srcRel := srcRelPath + "/" + entry.Name()
+		dstRel := dstRelPath + "/" + entry.Name()
+
+		if entry.IsDir() {
+			if err := s.copyDir(srcPath, dstPath, srcRel, dstRel); err != nil {
+				return err
+			}
+		} else {
+			if err := s.copyFileAndIndex(srcPath, dstPath, dstRel); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *NoteService) copyFileAndIndex(src, dst, dstRelPath string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+
+	content, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(dst, content, 0644); err != nil {
+		return err
+	}
+
+	if strings.HasSuffix(dstRelPath, ".md") {
+		s.indexNote(dstRelPath)
+	}
+
+	return nil
+}
+
+func (s *NoteService) ListFiles(notebook string, includeFolders bool) ([]FileItem, error) {
+	basePath := s.cfg.Notes.RootPath
+	if notebook != "" {
+		basePath = filepath.Join(basePath, notebook)
+	}
+
+	// Sync root-level folders as notebooks
+	if notebook == "" {
+		s.syncNotebooks()
+	}
+
+	var items []FileItem
+	err := filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		if path == basePath {
+			return nil
+		}
+
+		relPath, _ := filepath.Rel(s.cfg.Notes.RootPath, path)
+
+		if info.IsDir() {
+			if includeFolders {
+				items = append(items, FileItem{
+					Path:      relPath,
+					Name:      info.Name(),
+					Type:      "folder",
+					UpdatedAt: info.ModTime(),
+				})
+			}
+		} else {
+			items = append(items, FileItem{
+				Path:      relPath,
+				Name:      info.Name(),
+				Type:      "file",
+				Size:      info.Size(),
+				UpdatedAt: info.ModTime(),
+			})
+		}
+
+		return nil
+	})
+
+	return items, err
+}
+
+func (s *NoteService) syncNotebooks() {
+	entries, err := os.ReadDir(s.cfg.Notes.RootPath)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		var existing model.Notebook
+		if err := s.db.Where("name = ?", name).First(&existing).Error; err != nil {
+			notebook := &model.Notebook{
+				Name: name,
+			}
+			s.db.Create(notebook)
+		}
+	}
 }

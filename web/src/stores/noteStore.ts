@@ -1,27 +1,36 @@
 import { create } from 'zustand';
-import { noteApi, notebookApi } from '../services/api';
-import type { Note, Notebook } from '../services/api';
+import { noteApi, notebookApi, fileApi, folderApi } from '../services/api';
+import type { Note, Notebook, FileItem } from '../services/api';
 
 interface NoteState {
   notebooks: Notebook[];
   notes: Note[];
+  fileItems: FileItem[];
   currentNote: Note | null;
   isLoading: boolean;
+  isNoteLoading: boolean;
   loadNotebooks: () => Promise<void>;
   loadNotes: (notebook?: string) => Promise<void>;
+  loadFiles: (notebook?: string) => Promise<void>;
   loadNote: (path: string) => Promise<void>;
   createNote: (data: { path: string; title?: string; content: string; tags?: string[] }) => Promise<Note>;
   updateNote: (path: string, content: string, append?: boolean) => Promise<void>;
   deleteNote: (path: string) => Promise<void>;
   searchNotes: (query: string, notebook?: string, tags?: string[]) => Promise<Note[]>;
   setCurrentNote: (note: Note | null) => void;
+  createFolder: (path: string) => Promise<void>;
+  deleteFolder: (path: string) => Promise<void>;
+  moveFile: (source: string, target: string) => Promise<void>;
+  copyFile: (source: string, target: string) => Promise<void>;
 }
 
 export const useNoteStore = create<NoteState>((set, get) => ({
   notebooks: [],
   notes: [],
+  fileItems: [],
   currentNote: null,
   isLoading: false,
+  isNoteLoading: false,
 
   loadNotebooks: async () => {
     const { data } = await notebookApi.list();
@@ -38,13 +47,23 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     }
   },
 
-  loadNote: async (path: string) => {
+  loadFiles: async (notebook?: string) => {
     set({ isLoading: true });
+    try {
+      const { data } = await fileApi.list(notebook, true);
+      set({ fileItems: data || [] });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  loadNote: async (path: string) => {
+    set({ isNoteLoading: true });
     try {
       const { data } = await noteApi.get(path);
       set({ currentNote: data });
     } finally {
-      set({ isLoading: false });
+      set({ isNoteLoading: false });
     }
   },
 
@@ -80,4 +99,28 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
 
   setCurrentNote: (note: Note | null) => set({ currentNote: note }),
+
+  createFolder: async (path: string) => {
+    await folderApi.create(path);
+    await get().loadFiles();
+  },
+
+  deleteFolder: async (path: string) => {
+    await folderApi.delete(path);
+    await get().loadFiles();
+  },
+
+  moveFile: async (source: string, target: string) => {
+    await fileApi.move(source, target);
+    await get().loadFiles();
+    const currentNote = get().currentNote;
+    if (currentNote && currentNote.path === source) {
+      await get().loadNote(target);
+    }
+  },
+
+  copyFile: async (source: string, target: string) => {
+    await fileApi.copy(source, target);
+    await get().loadFiles();
+  },
 }));

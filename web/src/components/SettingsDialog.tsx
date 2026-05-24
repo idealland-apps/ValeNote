@@ -5,14 +5,17 @@ import {
   TextField, Button, Alert, CircularProgress
 } from '@mui/material';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useAuthStore } from '../stores/authStore';
 import AgentManagement from './AgentManagement';
+import UserManagement from './UserManagement';
 import RemoteStorageDialog from './RemoteStorageDialog';
+import { useSiteStore } from '../stores/siteStore';
 import api from '../services/api';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  notebooks: Array<{ id: number; name: string; display_name: string }>;
+  notebooks: Array<{ id: number; name: string }>;
 }
 
 interface TabPanelProps {
@@ -32,15 +35,19 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 interface SystemSettings {
   version_retention_days: number;
   version_max_count: number;
+  site_name: string;
 }
 
 export default function SettingsDialog({ open, onClose, notebooks }: Props) {
   const { themeMode, editorFontSize, setThemeMode, setEditorFontSize } = useSettingsStore();
+  const currentUser = useAuthStore((s) => s.user);
+  const isAdmin = currentUser?.is_admin ?? false;
   const [tabIndex, setTabIndex] = useState(0);
   const [publicPath, setPublicPath] = useState('/public');
   const [systemSettings, setSystemSettings] = useState<SystemSettings>({
     version_retention_days: 30,
     version_max_count: 100,
+    site_name: 'ValeNote',
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,7 +69,11 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
         api.get<SystemSettings>('/settings/system'),
       ]);
       setPublicPath(pathRes.data.path);
-      setSystemSettings(sysRes.data);
+      setSystemSettings({
+        version_retention_days: sysRes.data.version_retention_days ?? 30,
+        version_max_count: sysRes.data.version_max_count ?? 100,
+        site_name: sysRes.data.site_name || 'ValeNote',
+      });
     } catch {
       setError('Failed to load settings');
     } finally {
@@ -89,6 +100,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     setError('');
     try {
       await api.put('/settings/system', systemSettings);
+      useSiteStore.setState({ siteName: systemSettings.site_name, loaded: true });
       setSuccess('Settings saved');
       setTimeout(() => setSuccess(''), 3000);
     } catch {
@@ -108,10 +120,11 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
 
           <Tabs value={tabIndex} onChange={(_, v) => setTabIndex(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tab label="Appearance" />
-            <Tab label="Agent Management" />
+            {isAdmin && <Tab label="Site" />}
+            <Tab label="Agents" />
+            {isAdmin && <Tab label="Users" />}
             <Tab label="Public Access" />
-            <Tab label="Backup & Sync" />
-            <Tab label="Version History" />
+            <Tab label="Backup" />
           </Tabs>
 
           {loading ? (
@@ -165,11 +178,47 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                 </List>
               </TabPanel>
 
-              <TabPanel value={tabIndex} index={1}>
+              {isAdmin && (
+                <TabPanel value={tabIndex} index={1}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    Configure the site name that appears in the page title, sidebar, and public pages.
+                  </Typography>
+
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 3 }}>
+                    <TextField
+                      label="Site Name"
+                      value={systemSettings.site_name}
+                      onChange={(e) => setSystemSettings({
+                        ...systemSettings,
+                        site_name: e.target.value,
+                      })}
+                      placeholder="ValeNote"
+                      helperText="This name will be displayed in the browser title, sidebar header, and public pages"
+                      sx={{ flexGrow: 1, maxWidth: 400 }}
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={handleSaveSystemSettings}
+                      disabled={saving}
+                      sx={{ mt: 1 }}
+                    >
+                      Save
+                    </Button>
+                  </Box>
+                </TabPanel>
+              )}
+
+              <TabPanel value={tabIndex} index={isAdmin ? 2 : 1}>
                 <AgentManagement notebooks={notebooks} />
               </TabPanel>
 
-              <TabPanel value={tabIndex} index={2}>
+              {isAdmin && (
+                <TabPanel value={tabIndex} index={3}>
+                  <UserManagement />
+                </TabPanel>
+              )}
+
+              <TabPanel value={tabIndex} index={isAdmin ? 4 : 2}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                   Configure the base URL path for publicly accessible notebooks.
                   Public notebooks can be accessed at: <code>{window.location.origin}{publicPath}/[notebook-name]/</code>
@@ -211,7 +260,58 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                 </Typography>
               </TabPanel>
 
-              <TabPanel value={tabIndex} index={3}>
+              <TabPanel value={tabIndex} index={isAdmin ? 5 : 3}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Version History
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Configure how long version history is retained for your notes.
+                </Typography>
+
+                <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                  <TextField
+                    label="Retention Days"
+                    type="number"
+                    size="small"
+                    value={systemSettings.version_retention_days}
+                    onChange={(e) => setSystemSettings({
+                      ...systemSettings,
+                      version_retention_days: parseInt(e.target.value) || 30,
+                    })}
+                    helperText="Keep versions for this many days"
+                    slotProps={{ htmlInput: { min: 1 } }}
+                    sx={{ maxWidth: 200 }}
+                  />
+
+                  <TextField
+                    label="Maximum Versions"
+                    type="number"
+                    size="small"
+                    value={systemSettings.version_max_count}
+                    onChange={(e) => setSystemSettings({
+                      ...systemSettings,
+                      version_max_count: parseInt(e.target.value) || 100,
+                    })}
+                    helperText="Max versions per note"
+                    slotProps={{ htmlInput: { min: 1 } }}
+                    sx={{ maxWidth: 200 }}
+                  />
+
+                  <Button
+                    variant="contained"
+                    onClick={handleSaveSystemSettings}
+                    disabled={saving}
+                    sx={{ alignSelf: 'flex-start', mt: 0.5 }}
+                  >
+                    Save
+                  </Button>
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Remote Storage
+                </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Configure automatic backup to remote storage (S3, WebDAV, etc.)
                 </Typography>
@@ -237,51 +337,6 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                 >
                   Export All Notes
                 </Button>
-              </TabPanel>
-
-              <TabPanel value={tabIndex} index={4}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                  Configure how long version history is retained for your notes.
-                  Versions older than these limits will be automatically cleaned up.
-                </Typography>
-
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <TextField
-                    label="Retention Days"
-                    type="number"
-                    value={systemSettings.version_retention_days}
-                    onChange={(e) => setSystemSettings({
-                      ...systemSettings,
-                      version_retention_days: parseInt(e.target.value) || 30,
-                    })}
-                    helperText="Keep versions for this many days (minimum 1)"
-                    slotProps={{ htmlInput: { min: 1 } }}
-                    sx={{ maxWidth: 300 }}
-                  />
-
-                  <TextField
-                    label="Maximum Versions"
-                    type="number"
-                    value={systemSettings.version_max_count}
-                    onChange={(e) => setSystemSettings({
-                      ...systemSettings,
-                      version_max_count: parseInt(e.target.value) || 100,
-                    })}
-                    helperText="Keep at most this many versions per note (minimum 1)"
-                    slotProps={{ htmlInput: { min: 1 } }}
-                    sx={{ maxWidth: 300 }}
-                  />
-
-                  <Box>
-                    <Button
-                      variant="contained"
-                      onClick={handleSaveSystemSettings}
-                      disabled={saving}
-                    >
-                      Save Settings
-                    </Button>
-                  </Box>
-                </Box>
               </TabPanel>
             </>
           )}

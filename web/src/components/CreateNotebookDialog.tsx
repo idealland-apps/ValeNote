@@ -10,7 +10,6 @@ interface Props {
 
 export default function CreateNotebookDialog({ open, onClose, onCreated }: Props) {
   const [name, setName] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,13 +21,11 @@ export default function CreateNotebookDialog({ open, onClose, onCreated }: Props
     try {
       await notebookApi.create({
         name: name.trim().toLowerCase().replace(/\s+/g, '-'),
-        display_name: displayName.trim() || undefined,
         description: description.trim() || undefined,
       });
       onCreated();
       onClose();
       setName('');
-      setDisplayName('');
       setDescription('');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create notebook';
@@ -57,13 +54,6 @@ export default function CreateNotebookDialog({ open, onClose, onCreated }: Props
             helperText="Lowercase letters, numbers, and hyphens only"
             fullWidth
             required
-          />
-          <TextField
-            label="Display Name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="My Notebook"
-            fullWidth
           />
           <TextField
             label="Description"
