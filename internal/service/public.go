@@ -27,6 +27,20 @@ func GetReservedPaths() []string {
 	return paths
 }
 
+func validatePublicPath(path string) error {
+	if strings.Contains(path, "..") {
+		return ErrPathEscape
+	}
+	cleaned := filepath.Clean(path)
+	if strings.HasPrefix(cleaned, "/") || strings.HasPrefix(cleaned, "\\") {
+		return ErrPathEscape
+	}
+	if strings.Contains(cleaned, "..") {
+		return ErrPathEscape
+	}
+	return nil
+}
+
 type PublicTreeItem struct {
 	Path     string           `json:"path"`
 	Name     string           `json:"name"`
@@ -101,6 +115,15 @@ func (s *PublicService) GetPublicNotebooks() ([]model.Notebook, error) {
 }
 
 func (s *PublicService) GetPublicNote(notebookName, notePath string) (*Note, error) {
+	if err := validatePublicPath(notebookName); err != nil {
+		return nil, ErrNoteNotFound
+	}
+	if notePath != "" {
+		if err := validatePublicPath(notePath); err != nil {
+			return nil, ErrNoteNotFound
+		}
+	}
+
 	if !s.IsNotebookPublic(notebookName) {
 		return nil, ErrNoteNotFound
 	}
@@ -118,6 +141,10 @@ func (s *PublicService) GetPublicNote(notebookName, notePath string) (*Note, err
 }
 
 func (s *PublicService) ListPublicNotes(notebookName string) ([]Note, error) {
+	if err := validatePublicPath(notebookName); err != nil {
+		return nil, ErrNotebookNotFound
+	}
+
 	if !s.IsNotebookPublic(notebookName) {
 		return nil, ErrNotebookNotFound
 	}
@@ -126,6 +153,10 @@ func (s *PublicService) ListPublicNotes(notebookName string) ([]Note, error) {
 }
 
 func (s *PublicService) GetNotebookTree(notebookName string) (*PublicTreeItem, error) {
+	if err := validatePublicPath(notebookName); err != nil {
+		return nil, ErrNotebookNotFound
+	}
+
 	if !s.IsNotebookPublic(notebookName) {
 		return nil, ErrNotebookNotFound
 	}
@@ -185,6 +216,15 @@ func (s *PublicService) buildTree(fsPath, relativePath string, parent *PublicTre
 }
 
 func (s *PublicService) GetFolderNotes(notebookName, folderPath string) ([]Note, error) {
+	if err := validatePublicPath(notebookName); err != nil {
+		return nil, ErrNotebookNotFound
+	}
+	if folderPath != "" {
+		if err := validatePublicPath(folderPath); err != nil {
+			return nil, ErrNotebookNotFound
+		}
+	}
+
 	if !s.IsNotebookPublic(notebookName) {
 		return nil, ErrNotebookNotFound
 	}
@@ -224,6 +264,13 @@ func (s *PublicService) GetFolderNotes(notebookName, folderPath string) ([]Note,
 }
 
 func (s *PublicService) GetAttachmentPath(notebookName, attachmentPath string) (string, error) {
+	if err := validatePublicPath(notebookName); err != nil {
+		return "", ErrNotebookNotFound
+	}
+	if err := validatePublicPath(attachmentPath); err != nil {
+		return "", ErrPathEscape
+	}
+
 	if !s.IsNotebookPublic(notebookName) {
 		return "", ErrNotebookNotFound
 	}

@@ -173,11 +173,6 @@ func (h *PublicHandler) ServePublicAttachment(c *gin.Context) {
 	path := c.Param("path")
 	path = strings.TrimPrefix(path, "/")
 
-	if !h.publicService.IsNotebookPublic(notebook) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
-
 	fullPath, err := h.publicService.GetAttachmentPath(notebook, path)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "attachment not found"})
