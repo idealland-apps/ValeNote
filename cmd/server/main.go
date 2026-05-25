@@ -56,15 +56,15 @@ func main() {
 	agentService := service.NewAgentService(db)
 	userService := service.NewUserService(db)
 
-	mcpServer := mcp.NewServer(noteService, searchService)
+	mcpServer := mcp.NewServer(noteService, searchService, agentService)
 
 	authHandler := handler.NewAuthHandler(authService)
 	noteHandler := handler.NewNoteHandler(noteService, searchService)
 	attachmentHandler := handler.NewAttachmentHandler(attachmentService)
 	versionHandler := handler.NewVersionHandler(versionService, noteService)
-	exportHandler := handler.NewExportHandler(exportService)
+	exportHandler := handler.NewExportHandler(exportService, authService)
 	wsHandler := handler.NewWebSocketHandler(hub, authService)
-	mcpHandler := handler.NewMCPHandler(mcpServer)
+	mcpHandler := handler.NewMCPHandler(mcpServer, agentService)
 	publicHandler := handler.NewPublicHandler(publicService)
 	linkHandler := handler.NewLinkHandler(linkService)
 	remoteSyncHandler := handler.NewRemoteSyncHandler(remoteSyncService)
@@ -72,6 +72,7 @@ func main() {
 	agentHandler := handler.NewAgentHandler(agentService)
 	settingsHandler := handler.NewSettingsHandler(db)
 	userHandler := handler.NewUserHandler(userService, authService)
+	agentAPIHandler := handler.NewAgentAPIHandler(noteService, searchService, agentService)
 
 	r := gin.Default()
 
@@ -88,6 +89,8 @@ func main() {
 		{
 			auth.POST("/login", authHandler.Login)
 		}
+
+		api.GET("/export", exportHandler.Export)
 
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(authService))
@@ -128,7 +131,7 @@ func main() {
 
 			protected.GET("/attachments/*path", attachmentHandler.Serve)
 
-			protected.GET("/export", exportHandler.Export)
+			protected.POST("/export/token", exportHandler.GetExportToken)
 
 			protected.GET("/editors", wsHandler.GetEditors)
 
@@ -162,6 +165,18 @@ func main() {
 			protected.PUT("/users/:id", userHandler.UpdateUser)
 			protected.PUT("/users/:id/password", userHandler.UpdatePassword)
 			protected.DELETE("/users/:id", userHandler.DeleteUser)
+		}
+
+		// Agent API routes (agent API key auth only)
+		agentAPI := api.Group("/agent")
+		agentAPI.Use(middleware.AgentAuthMiddleware(agentService))
+		{
+			agentAPI.GET("/notebooks", agentAPIHandler.ListNotebooks)
+			agentAPI.GET("/notes", agentAPIHandler.ListNotes)
+			agentAPI.GET("/notes/*path", agentAPIHandler.GetNote)
+			agentAPI.POST("/notes", agentAPIHandler.CreateNote)
+			agentAPI.PUT("/notes/*path", agentAPIHandler.UpdateNote)
+			agentAPI.GET("/search", agentAPIHandler.SearchNotes)
 		}
 	}
 

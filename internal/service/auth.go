@@ -93,6 +93,45 @@ func (s *AuthService) GetUserByID(id int64) (*model.User, error) {
 	return &user, nil
 }
 
+type ExportClaims struct {
+	UserID  int64  `json:"uid"`
+	Purpose string `json:"purpose"`
+	jwt.RegisteredClaims
+}
+
+func (s *AuthService) GenerateExportToken(userID int64) (string, error) {
+	claims := ExportClaims{
+		UserID:  userID,
+		Purpose: "export",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(60 * time.Second)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.cfg.JWT.Secret))
+}
+
+func (s *AuthService) ValidateExportToken(tokenString string) (*ExportClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &ExportClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(s.cfg.JWT.Secret), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*ExportClaims); ok && token.Valid {
+		if claims.Purpose != "export" {
+			return nil, errors.New("invalid token purpose")
+		}
+		return claims, nil
+	}
+
+	return nil, errors.New("invalid token")
+}
+
 func generateSessionID() string {
 	data := time.Now().UnixNano()
 	hash := sha256.Sum256([]byte(string(rune(data))))

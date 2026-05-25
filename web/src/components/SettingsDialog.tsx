@@ -379,7 +379,15 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                 </Typography>
                 <Button
                   variant="outlined"
-                  onClick={() => window.open('/api/v1/export', '_blank')}
+                  onClick={async () => {
+                    try {
+                      const res = await api.post('/export/token');
+                      const { token } = res.data;
+                      window.open(`/api/v1/export?token=${token}`, '_blank');
+                    } catch {
+                      alert('Failed to generate export token');
+                    }
+                  }}
                 >
                   Export All Notes
                 </Button>

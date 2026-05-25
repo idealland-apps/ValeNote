@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/idealland-apps/valenote/internal/service"
 )
@@ -10,12 +11,18 @@ import (
 type Server struct {
 	noteService   *service.NoteService
 	searchService *service.SearchService
+	agentService  *service.AgentService
 }
 
-func NewServer(noteService *service.NoteService, searchService *service.SearchService) *Server {
+type RequestContext struct {
+	AgentID int64
+}
+
+func NewServer(noteService *service.NoteService, searchService *service.SearchService, agentService *service.AgentService) *Server {
 	return &Server{
 		noteService:   noteService,
 		searchService: searchService,
+		agentService:  agentService,
 	}
 }
 
@@ -133,14 +140,14 @@ func (s *Server) GetTools() []Tool {
 	}
 }
 
-func (s *Server) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
+func (s *Server) HandleRequest(req *JSONRPCRequest, ctx *RequestContext) *JSONRPCResponse {
 	switch req.Method {
 	case "initialize":
 		return s.handleInitialize(req)
 	case "tools/list":
 		return s.handleListTools(req)
 	case "tools/call":
-		return s.handleToolCall(req)
+		return s.handleToolCall(req, ctx)
 	default:
 		return &JSONRPCResponse{
 			JSONRPC: "2.0",
@@ -180,7 +187,7 @@ func (s *Server) handleListTools(req *JSONRPCRequest) *JSONRPCResponse {
 	}
 }
 
-func (s *Server) handleToolCall(req *JSONRPCRequest) *JSONRPCResponse {
+func (s *Server) handleToolCall(req *JSONRPCRequest, ctx *RequestContext) *JSONRPCResponse {
 	var params ToolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		return &JSONRPCResponse{
@@ -193,7 +200,7 @@ func (s *Server) handleToolCall(req *JSONRPCRequest) *JSONRPCResponse {
 		}
 	}
 
-	result, isError := s.callTool(params.Name, params.Arguments)
+	result, isError := s.callTool(params.Name, params.Arguments, ctx)
 	return &JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      req.ID,
@@ -204,41 +211,59 @@ func (s *Server) handleToolCall(req *JSONRPCRequest) *JSONRPCResponse {
 	}
 }
 
-func (s *Server) callTool(name string, arguments json.RawMessage) ([]ContentBlock, bool) {
+func (s *Server) callTool(name string, arguments json.RawMessage, ctx *RequestContext) ([]ContentBlock, bool) {
 	switch name {
 	case "list_notebooks":
-		return s.listNotebooks()
+		return s.listNotebooks(ctx)
 	case "list_notes":
-		return s.listNotes(arguments)
+		return s.listNotes(arguments, ctx)
 	case "search_notes":
-		return s.searchNotes(arguments)
+		return s.searchNotes(arguments, ctx)
 	case "read_note":
-		return s.readNote(arguments)
+		return s.readNote(arguments, ctx)
 	case "create_note":
-		return s.createNote(arguments)
+		return s.createNote(arguments, ctx)
 	case "update_note":
-		return s.updateNote(arguments)
+		return s.updateNote(arguments, ctx)
 	default:
 		return NewTextContent(fmt.Sprintf("Unknown tool: %s", name)), true
 	}
 }
 
-func (s *Server) listNotebooks() ([]ContentBlock, bool) {
+func (s *Server) listNotebooks(ctx *RequestContext) ([]ContentBlock, bool) {
 	notebooks, err := s.noteService.ListNotebooks()
 	if err != nil {
 		return NewErrorContent(err), true
 	}
 
-	data, _ := json.MarshalIndent(notebooks, "", "  ")
+	accessible := make([]map[string]interface{}, 0)
+	for _, nb := range notebooks {
+		hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, nb.Name, "read")
+		if hasAccess {
+			accessible = append(accessible, map[string]interface{}{
+				"name":      nb.Name,
+				"is_public": nb.IsPublic,
+			})
+		}
+	}
+
+	data, _ := json.MarshalIndent(accessible, "", "  ")
 	return NewTextContent(string(data)), false
 }
 
-func (s *Server) listNotes(args json.RawMessage) ([]ContentBlock, bool) {
+func (s *Server) listNotes(args json.RawMessage, ctx *RequestContext) ([]ContentBlock, bool) {
 	var params struct {
 		Notebook  string `json:"notebook"`
 		Recursive *bool  `json:"recursive"`
 	}
 	json.Unmarshal(args, &params)
+
+	if params.Notebook != "" {
+		hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, params.Notebook, "read")
+		if !hasAccess {
+			return NewTextContent("Error: no access to this notebook"), true
+		}
+	}
 
 	recursive := true
 	if params.Recursive != nil {
@@ -250,17 +275,36 @@ func (s *Server) listNotes(args json.RawMessage) ([]ContentBlock, bool) {
 		return NewErrorContent(err), true
 	}
 
+	if params.Notebook == "" {
+		filtered := make([]service.Note, 0)
+		for _, note := range notes {
+			notebookName := strings.Split(note.Path, "/")[0]
+			hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "read")
+			if hasAccess {
+				filtered = append(filtered, note)
+			}
+		}
+		notes = filtered
+	}
+
 	data, _ := json.MarshalIndent(notes, "", "  ")
 	return NewTextContent(string(data)), false
 }
 
-func (s *Server) searchNotes(args json.RawMessage) ([]ContentBlock, bool) {
+func (s *Server) searchNotes(args json.RawMessage, ctx *RequestContext) ([]ContentBlock, bool) {
 	var params struct {
 		Query    string `json:"query"`
 		Notebook string `json:"notebook"`
 		Limit    int    `json:"limit"`
 	}
 	json.Unmarshal(args, &params)
+
+	if params.Notebook != "" {
+		hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, params.Notebook, "read")
+		if !hasAccess {
+			return NewTextContent("Error: no access to this notebook"), true
+		}
+	}
 
 	if params.Limit == 0 {
 		params.Limit = 20
@@ -271,15 +315,33 @@ func (s *Server) searchNotes(args json.RawMessage) ([]ContentBlock, bool) {
 		return NewErrorContent(err), true
 	}
 
+	if params.Notebook == "" {
+		filtered := make([]service.SearchResult, 0)
+		for _, result := range results {
+			notebookName := strings.Split(result.Path, "/")[0]
+			hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "read")
+			if hasAccess {
+				filtered = append(filtered, result)
+			}
+		}
+		results = filtered
+	}
+
 	data, _ := json.MarshalIndent(results, "", "  ")
 	return NewTextContent(string(data)), false
 }
 
-func (s *Server) readNote(args json.RawMessage) ([]ContentBlock, bool) {
+func (s *Server) readNote(args json.RawMessage, ctx *RequestContext) ([]ContentBlock, bool) {
 	var params struct {
 		Path string `json:"path"`
 	}
 	json.Unmarshal(args, &params)
+
+	notebookName := strings.Split(params.Path, "/")[0]
+	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "read")
+	if !hasAccess {
+		return NewTextContent("Error: no access to this notebook"), true
+	}
 
 	note, err := s.noteService.GetNote(params.Path)
 	if err != nil {
@@ -289,7 +351,7 @@ func (s *Server) readNote(args json.RawMessage) ([]ContentBlock, bool) {
 	return NewTextContent(note.Content), false
 }
 
-func (s *Server) createNote(args json.RawMessage) ([]ContentBlock, bool) {
+func (s *Server) createNote(args json.RawMessage, ctx *RequestContext) ([]ContentBlock, bool) {
 	var params struct {
 		Path    string   `json:"path"`
 		Title   string   `json:"title"`
@@ -298,6 +360,12 @@ func (s *Server) createNote(args json.RawMessage) ([]ContentBlock, bool) {
 	}
 	json.Unmarshal(args, &params)
 
+	notebookName := strings.Split(params.Path, "/")[0]
+	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "readwrite")
+	if !hasAccess {
+		return NewTextContent("Error: no write access to this notebook"), true
+	}
+
 	req := &service.CreateNoteRequest{
 		Path:    params.Path,
 		Title:   params.Title,
@@ -305,7 +373,7 @@ func (s *Server) createNote(args json.RawMessage) ([]ContentBlock, bool) {
 		Tags:    params.Tags,
 	}
 
-	note, err := s.noteService.CreateNote(req, 0) // 0 for agent user
+	note, err := s.noteService.CreateNote(req, 0)
 	if err != nil {
 		return NewErrorContent(err), true
 	}
@@ -313,13 +381,19 @@ func (s *Server) createNote(args json.RawMessage) ([]ContentBlock, bool) {
 	return NewTextContent(fmt.Sprintf("Created note: %s", note.Path)), false
 }
 
-func (s *Server) updateNote(args json.RawMessage) ([]ContentBlock, bool) {
+func (s *Server) updateNote(args json.RawMessage, ctx *RequestContext) ([]ContentBlock, bool) {
 	var params struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
 		Append  bool   `json:"append"`
 	}
 	json.Unmarshal(args, &params)
+
+	notebookName := strings.Split(params.Path, "/")[0]
+	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "readwrite")
+	if !hasAccess {
+		return NewTextContent("Error: no write access to this notebook"), true
+	}
 
 	req := &service.UpdateNoteRequest{
 		Content: params.Content,
