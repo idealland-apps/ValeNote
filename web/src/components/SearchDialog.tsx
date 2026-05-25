@@ -16,6 +16,19 @@ import {
 import { Search as SearchIcon, Description as FileIcon, TextSnippet as ContentIcon } from '@mui/icons-material';
 import { noteApi, type SearchResult, type FileItem } from '../services/api';
 
+function highlightText(text: string, query: string): React.ReactNode {
+  if (!query.trim()) return text;
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  return parts.map((part, i) =>
+    regex.test(part) ? (
+      <Box component="span" key={i} sx={{ bgcolor: 'rgba(25, 118, 210, 0.15)', borderRadius: 0.5, px: 0.25 }}>
+        {part}
+      </Box>
+    ) : part
+  );
+}
+
 interface SearchDialogProps {
   open: boolean;
   onClose: () => void;
@@ -109,10 +122,11 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
       }}
     >
       <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ p: 2, pb: 0 }}>
+        <Box sx={{ p: 1.5, pb: 1 }}>
           <TextField
             inputRef={inputRef}
             fullWidth
+            size="small"
             placeholder={tab === 0 ? 'Search note content...' : 'Search files and folders...'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -122,12 +136,12 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon />
+                    <SearchIcon sx={{ fontSize: 20 }} />
                   </InputAdornment>
                 ),
                 endAdornment: loading ? (
                   <InputAdornment position="end">
-                    <CircularProgress size={20} />
+                    <CircularProgress size={18} />
                   </InputAdornment>
                 ) : null,
               },
@@ -138,27 +152,29 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
-          sx={{ px: 2, borderBottom: 1, borderColor: 'divider' }}
+          sx={{ px: 1.5, minHeight: 36, borderBottom: 1, borderColor: 'divider' }}
         >
-          <Tab icon={<ContentIcon />} iconPosition="start" label="Full-text" />
-          <Tab icon={<FileIcon />} iconPosition="start" label="File" />
+          <Tab icon={<ContentIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Full-text" sx={{ minHeight: 36, py: 0.5, fontSize: '0.8125rem' }} />
+          <Tab icon={<FileIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="File" sx={{ minHeight: 36, py: 0.5, fontSize: '0.8125rem' }} />
         </Tabs>
 
         <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
           {tab === 0 ? (
             query ? (
               fulltextResults.length > 0 ? (
-                <List dense>
+                <List dense disablePadding>
                   {fulltextResults.map((result) => (
                     <ListItemButton
                       key={result.path}
                       onClick={() => handleSelect(result.path)}
+                      sx={{ py: 0.75, px: 1.5 }}
                     >
                       <ListItemText
-                        primary={result.title || result.path.split('/').pop()}
+                        primary={highlightText(result.title || result.path.split('/').pop() || '', query)}
+                        slotProps={{ primary: { sx: { fontSize: '0.875rem', lineHeight: 1.3 } } }}
                         secondary={
                           <>
-                            <Typography variant="caption" color="text.secondary" component="span">
+                            <Typography variant="caption" color="text.secondary" component="span" sx={{ fontSize: '0.7rem' }}>
                               {result.path}
                             </Typography>
                             {result.snippet && (
@@ -168,14 +184,15 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
                                 component="span"
                                 sx={{
                                   display: 'block',
-                                  mt: 0.5,
-                                  fontSize: '0.75rem',
+                                  mt: 0.25,
+                                  fontSize: '0.7rem',
+                                  lineHeight: 1.3,
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap',
                                 }}
                               >
-                                {result.snippet}
+                                {highlightText(result.snippet, query)}
                               </Typography>
                             )}
                           </>
@@ -185,39 +202,44 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
                   ))}
                 </List>
               ) : !loading ? (
-                <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
-                  <Typography>No results found</Typography>
+                <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                  <Typography variant="body2">No results found</Typography>
                 </Box>
               ) : null
             ) : (
-              <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
-                <Typography>Type to search note content</Typography>
+              <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                <Typography variant="body2">Type to search note content</Typography>
               </Box>
             )
           ) : (
             query ? (
               filteredFiles.length > 0 ? (
-                <List dense>
+                <List dense disablePadding>
                   {filteredFiles.map((item) => (
                     <ListItemButton
                       key={item.path}
                       onClick={() => handleSelect(item.path)}
+                      sx={{ py: 0.75, px: 1.5 }}
                     >
                       <ListItemText
-                        primary={item.name}
-                        secondary={item.path}
+                        primary={highlightText(item.name, query)}
+                        slotProps={{
+                          primary: { sx: { fontSize: '0.875rem', lineHeight: 1.3 } },
+                          secondary: { sx: { fontSize: '0.7rem' } },
+                        }}
+                        secondary={highlightText(item.path, query)}
                       />
                     </ListItemButton>
                   ))}
                 </List>
               ) : (
-                <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
-                  <Typography>No files found</Typography>
+                <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                  <Typography variant="body2">No files found</Typography>
                 </Box>
               )
             ) : (
-              <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
-                <Typography>Type to search files and folders</Typography>
+              <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                <Typography variant="body2">Type to search files and folders</Typography>
               </Box>
             )
           )}

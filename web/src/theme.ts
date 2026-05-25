@@ -3,10 +3,17 @@ import type { ThemeOptions } from '@mui/material/styles';
 
 const baseTheme: ThemeOptions = {
   shape: {
-    borderRadius: 12,
+    borderRadius: 8,
   },
   typography: {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    fontSize: 13,
+    body1: {
+      fontSize: '0.875rem',
+    },
+    body2: {
+      fontSize: '0.8rem',
+    },
   },
   components: {
     MuiCssBaseline: {
@@ -20,10 +27,60 @@ const baseTheme: ThemeOptions = {
       styleOverrides: {
         root: {
           textTransform: 'none',
+          fontSize: '0.8rem',
+        },
+        sizeSmall: {
+          padding: '4px 10px',
+          fontSize: '0.75rem',
+        },
+        sizeMedium: {
+          padding: '6px 14px',
         },
       },
       defaultProps: {
         disableElevation: true,
+        size: 'small',
+      },
+    },
+    MuiIconButton: {
+      defaultProps: {
+        size: 'small',
+      },
+      styleOverrides: {
+        sizeSmall: {
+          padding: 6,
+        },
+      },
+    },
+    MuiTextField: {
+      defaultProps: {
+        size: 'small',
+      },
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            fontSize: '0.85rem',
+          },
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          fontSize: '0.85rem',
+        },
+        input: {
+          '&.MuiInputBase-inputSizeSmall': {
+            padding: '6px 12px',
+          },
+        },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        sizeSmall: {
+          fontSize: '0.85rem',
+        },
       },
     },
     MuiToggleButton: {
@@ -31,12 +88,37 @@ const baseTheme: ThemeOptions = {
         root: {
           textTransform: 'none',
         },
+        sizeSmall: {
+          padding: '4px 10px',
+        },
       },
     },
     MuiTab: {
       styleOverrides: {
         root: {
           textTransform: 'none',
+          minHeight: 36,
+          minWidth: 48,
+          padding: '6px 12px',
+          fontSize: '0.8rem',
+        },
+      },
+    },
+    MuiTabs: {
+      styleOverrides: {
+        root: {
+          minHeight: 36,
+        },
+      },
+    },
+    MuiChip: {
+      defaultProps: {
+        size: 'small',
+      },
+      styleOverrides: {
+        sizeSmall: {
+          height: 22,
+          fontSize: '0.75rem',
         },
       },
     },
@@ -48,14 +130,15 @@ const baseTheme: ThemeOptions = {
     MuiListItemButton: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: 8,
+          padding: '6px 12px',
         },
       },
     },
     MuiMenu: {
       styleOverrides: {
         paper: {
-          borderRadius: '8px',
+          borderRadius: '6px',
         },
         list: {
           padding: '4px 0',
@@ -72,10 +155,34 @@ const baseTheme: ThemeOptions = {
     MuiMenuItem: {
       styleOverrides: {
         root: {
-          borderRadius: '8px',
+          borderRadius: '6px',
           margin: '0px 4px',
           paddingLeft: '8px',
           paddingRight: '8px',
+          minHeight: 28,
+          fontSize: '0.8rem',
+        },
+      },
+    },
+    MuiListItemIcon: {
+      styleOverrides: {
+        root: {
+          minWidth: 28,
+        },
+      },
+    },
+    MuiListItemText: {
+      styleOverrides: {
+        primary: {
+          fontSize: '0.8rem',
+        },
+      },
+    },
+    MuiDialogTitle: {
+      styleOverrides: {
+        root: {
+          fontSize: '1rem',
+          padding: '12px 16px',
         },
       },
     },
@@ -83,6 +190,14 @@ const baseTheme: ThemeOptions = {
       styleOverrides: {
         root: {
           paddingTop: 0,
+          padding: '8px 16px',
+        },
+      },
+    },
+    MuiDialogActions: {
+      styleOverrides: {
+        root: {
+          padding: '8px 16px',
         },
       },
     },
@@ -95,7 +210,7 @@ const baseTheme: ThemeOptions = {
           '&:hover:not(.Mui-disabled, .Mui-error):before': {
             borderBottom: 'none',
           },
-          borderRadius: 12,
+          borderRadius: 8,
         },
       },
     },

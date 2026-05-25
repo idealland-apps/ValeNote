@@ -88,31 +88,31 @@ export default function NoteEditor({ note }: Props) {
 
   return (
     <Paper sx={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Typography variant="h5" sx={{ flexGrow: 1 }}>
+      <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6" sx={{ flexGrow: 1 }}>
           {note.title || note.path.split('/').pop()}
         </Typography>
         <EditorIndicator notePath={note.path} />
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={0.5}>
           {note.tags?.map((tag) => (
-            <Chip key={tag} label={tag} size="small" />
+            <Chip key={tag} label={tag} />
           ))}
         </Stack>
-        <Tabs value={mode} onChange={(_, v) => { setMode(v); localStorage.setItem(EDITOR_MODE_KEY, v); }} sx={{ minHeight: 36 }}>
-          <Tab icon={<EditIcon />} value="edit" sx={{ minHeight: 36, minWidth: 48 }} />
-          <Tab icon={<ViewIcon />} value="preview" sx={{ minHeight: 36, minWidth: 48 }} />
+        <Tabs value={mode} onChange={(_, v) => { setMode(v); localStorage.setItem(EDITOR_MODE_KEY, v); }}>
+          <Tab icon={<EditIcon fontSize="small" />} value="edit" />
+          <Tab icon={<ViewIcon fontSize="small" />} value="preview" />
         </Tabs>
         <IconButton onClick={() => setHistoryOpen(true)} title="Version History">
-          <HistoryIcon />
+          <HistoryIcon fontSize="small" />
         </IconButton>
         <IconButton onClick={() => setAttachmentOpen(true)} title="Attachments">
-          <AttachFileIcon />
+          <AttachFileIcon fontSize="small" />
         </IconButton>
         <IconButton onClick={handleSave} disabled={saving} color="primary">
-          <SaveIcon />
+          <SaveIcon fontSize="small" />
         </IconButton>
         <IconButton onClick={handleDelete} color="error">
-          <DeleteIcon />
+          <DeleteIcon fontSize="small" />
         </IconButton>
       </Box>
       <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>

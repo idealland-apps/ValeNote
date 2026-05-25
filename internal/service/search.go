@@ -4,11 +4,37 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/idealland-apps/valenote/internal/config"
 	"github.com/idealland-apps/valenote/internal/model"
 	"gorm.io/gorm"
 )
+
+type cachedNote struct {
+	Path    string
+	Content string
+	Title   string
+	Tags    []string
+}
+
+type searchCache struct {
+	notes     []cachedNote
+	timestamp time.Time
+	mu        sync.RWMutex
+}
+
+const cacheTTL = 5 * time.Minute
+
+var globalSearchCache = &searchCache{}
+
+func InvalidateSearchCache() {
+	globalSearchCache.mu.Lock()
+	defer globalSearchCache.mu.Unlock()
+	globalSearchCache.notes = nil
+	globalSearchCache.timestamp = time.Time{}
+}
 
 type SearchService struct {
 	db  *gorm.DB
@@ -107,29 +133,24 @@ func (s *SearchService) SearchFulltext(query, notebook string, limit int) ([]Sea
 		return []SearchResult{}, nil
 	}
 
+	notes, err := s.getOrLoadCache()
+	if err != nil {
+		return nil, err
+	}
+
 	searchTerms := strings.Fields(strings.ToLower(query))
 	results := make([]SearchResult, 0)
 
-	basePath := s.cfg.Notes.RootPath
-	if notebook != "" {
-		basePath = filepath.Join(basePath, notebook)
-	}
-
-	filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
+	for _, note := range notes {
+		if notebook != "" && !strings.HasPrefix(note.Path, notebook+"/") {
+			continue
 		}
 
 		if len(results) >= limit {
-			return filepath.SkipAll
+			break
 		}
 
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-
-		contentLower := strings.ToLower(string(content))
+		contentLower := strings.ToLower(note.Content)
 		allMatch := true
 		firstMatchPos := -1
 
@@ -145,35 +166,92 @@ func (s *SearchService) SearchFulltext(query, notebook string, limit int) ([]Sea
 		}
 
 		if !allMatch {
-			return nil
+			continue
 		}
 
-		relPath, _ := filepath.Rel(s.cfg.Notes.RootPath, path)
-		parts := strings.SplitN(relPath, "/", 2)
+		parts := strings.SplitN(note.Path, "/", 2)
 		notebookName := ""
 		if len(parts) > 0 {
 			notebookName = parts[0]
 		}
 
+		snippet := extractSnippet(note.Content, firstMatchPos, 100)
+
+		results = append(results, SearchResult{
+			Path:     note.Path,
+			Title:    note.Title,
+			Tags:     note.Tags,
+			Notebook: notebookName,
+			Snippet:  snippet,
+		})
+	}
+
+	return results, nil
+}
+
+func (s *SearchService) getOrLoadCache() ([]cachedNote, error) {
+	globalSearchCache.mu.RLock()
+	if globalSearchCache.notes != nil && time.Since(globalSearchCache.timestamp) < cacheTTL {
+		notes := globalSearchCache.notes
+		globalSearchCache.mu.RUnlock()
+		s.refreshCacheTimestamp()
+		return notes, nil
+	}
+	globalSearchCache.mu.RUnlock()
+
+	return s.loadCache()
+}
+
+func (s *SearchService) refreshCacheTimestamp() {
+	globalSearchCache.mu.Lock()
+	defer globalSearchCache.mu.Unlock()
+	globalSearchCache.timestamp = time.Now()
+}
+
+func (s *SearchService) loadCache() ([]cachedNote, error) {
+	globalSearchCache.mu.Lock()
+	defer globalSearchCache.mu.Unlock()
+
+	if globalSearchCache.notes != nil && time.Since(globalSearchCache.timestamp) < cacheTTL {
+		return globalSearchCache.notes, nil
+	}
+
+	var notes []cachedNote
+
+	err := filepath.Walk(s.cfg.Notes.RootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+
+		relPath, _ := filepath.Rel(s.cfg.Notes.RootPath, path)
 		title, tags := parseFrontmatter(content)
 		if title == "" {
 			title = extractTitleFromContent(content)
 		}
 
-		snippet := extractSnippet(string(content), firstMatchPos, 100)
-
-		results = append(results, SearchResult{
-			Path:     relPath,
-			Title:    title,
-			Tags:     tags,
-			Notebook: notebookName,
-			Snippet:  snippet,
+		notes = append(notes, cachedNote{
+			Path:    relPath,
+			Content: string(content),
+			Title:   title,
+			Tags:    tags,
 		})
 
 		return nil
 	})
 
-	return results, nil
+	if err != nil {
+		return nil, err
+	}
+
+	globalSearchCache.notes = notes
+	globalSearchCache.timestamp = time.Now()
+
+	return notes, nil
 }
 
 func extractSnippet(content string, pos, length int) string {

@@ -144,7 +144,7 @@ const publicAxios = axios.create({
 
 export const publicApi = {
   listNotebooks: () => publicAxios.get<Notebook[]>('/public/notebooks'),
-  getSettings: () => publicAxios.get<{ site_name: string; show_powered_by: boolean }>('/public/settings'),
+  getSettings: () => publicAxios.get<{ site_name: string; show_powered_by: boolean; public_base_path: string }>('/public/settings'),
   getTree: (notebook: string) => publicAxios.get<PublicTreeItem>(`/public/${notebook}/tree`),
   getNote: (notebook: string, path: string) => publicAxios.get<Note>(`/public/${notebook}/note/${path}`),
   getFolderNotes: (notebook: string, path?: string) => {

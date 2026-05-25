@@ -151,21 +151,21 @@ export default function MainPage() {
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Toolbar>
-          <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(!drawerOpen)} sx={{ mr: 2 }}>
-            <MenuIcon />
+        <Toolbar variant="dense">
+          <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(!drawerOpen)} sx={{ mr: 1 }}>
+            <MenuIcon fontSize="small" />
           </IconButton>
-          <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
+          <Typography variant="subtitle1" noWrap sx={{ flexGrow: 1 }}>
             {siteName}
           </Typography>
-          <Typography variant="body2" sx={{ mr: 2 }}>
+          <Typography variant="body2" sx={{ mr: 1 }}>
             {user?.username}
           </Typography>
           <IconButton color="inherit" onClick={() => setAppSettingsOpen(true)} title="Settings">
-            <AppSettingsIcon />
+            <AppSettingsIcon fontSize="small" />
           </IconButton>
           <IconButton color="inherit" onClick={logout}>
-            <LogoutIcon />
+            <LogoutIcon fontSize="small" />
           </IconButton>
         </Toolbar>
       </AppBar>
@@ -182,10 +182,9 @@ export default function MainPage() {
         }}
       >
         <Toolbar />
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ px: 1.5, py: 1 }}>
           <TextField
             fullWidth
-            size="small"
             placeholder="Search..."
             onClick={() => setSearchDialogOpen(true)}
             slotProps={{
@@ -193,7 +192,7 @@ export default function MainPage() {
                 readOnly: true,
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon />
+                    <SearchIcon fontSize="small" />
                   </InputAdornment>
                 ),
                 sx: { cursor: 'pointer' },

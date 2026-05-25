@@ -97,6 +97,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     setError('');
     try {
       await api.put('/settings/public-path', { path: publicPath });
+      useSiteStore.setState({ publicBasePath: publicPath });
       setSuccess('Public path updated');
       setTimeout(() => setSuccess(''), 3000);
     } catch {

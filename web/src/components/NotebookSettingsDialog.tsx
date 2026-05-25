@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Switch, FormControlLabel, Box, Alert, Divider, Typography } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Switch, FormControlLabel, Box, Alert, Divider, Typography, IconButton, Tooltip } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CheckIcon from '@mui/icons-material/Check';
 import { notebookApi } from '../services/api';
 import type { Notebook } from '../services/api';
-import { PUBLIC_BASE_PATH } from '../constants';
+import { useSiteStore } from '../stores/siteStore';
 
 interface Props {
   open: boolean;
@@ -12,12 +14,14 @@ interface Props {
 }
 
 export default function NotebookSettingsDialog({ open, onClose, notebook, onSave }: Props) {
+  const { publicBasePath } = useSiteStore();
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (notebook) {
@@ -25,8 +29,17 @@ export default function NotebookSettingsDialog({ open, onClose, notebook, onSave
       setIsPublic(notebook.is_public || false);
       setConfirmDelete(false);
       setError('');
+      setCopied(false);
     }
   }, [notebook]);
+
+  const handleCopyUrl = async () => {
+    if (!notebook) return;
+    const url = `${window.location.origin}${publicBasePath}/${notebook.name}/`;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleSave = async () => {
     if (!notebook) return;
@@ -73,7 +86,7 @@ export default function NotebookSettingsDialog({ open, onClose, notebook, onSave
 
   if (!notebook) return null;
 
-  const publicUrl = `${window.location.origin}${PUBLIC_BASE_PATH}/${notebook.name}/`;
+  const publicUrl = `${window.location.origin}${publicBasePath}/${notebook.name}/`;
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -105,14 +118,30 @@ export default function NotebookSettingsDialog({ open, onClose, notebook, onSave
 
           {isPublic && (
             <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-              <TextField
-                fullWidth
-                label="Public URL"
-                value={publicUrl}
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-                helperText="Anyone can access notes in this notebook via this URL"
-              />
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Public URL
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    flex: 1,
+                    fontFamily: 'monospace',
+                    wordBreak: 'break-all',
+                    color: 'primary.main',
+                  }}
+                >
+                  {publicUrl}
+                </Typography>
+                <Tooltip title={copied ? 'Copied!' : 'Copy URL'}>
+                  <IconButton size="small" onClick={handleCopyUrl}>
+                    {copied ? <CheckIcon fontSize="small" color="success" /> : <ContentCopyIcon fontSize="small" />}
+                  </IconButton>
+                </Tooltip>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Anyone can access notes in this notebook via this URL
+              </Typography>
             </Box>
           )}
 

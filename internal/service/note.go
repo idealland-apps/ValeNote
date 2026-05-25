@@ -253,6 +253,7 @@ func (s *NoteService) CreateNote(req *CreateNoteRequest, userID int64) (*Note, e
 	}
 
 	s.indexNote(cleanPath)
+	InvalidateSearchCache()
 
 	return s.GetNote(cleanPath)
 }
@@ -317,6 +318,8 @@ func (s *NoteService) DeleteNote(path string) error {
 	s.db.Where("path = ?", cleanPath).Delete(&model.NoteMetadata{})
 
 	s.deleteAttachmentDir(cleanPath)
+
+	InvalidateSearchCache()
 
 	return nil
 }

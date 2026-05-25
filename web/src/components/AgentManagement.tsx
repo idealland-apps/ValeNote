@@ -9,7 +9,8 @@ import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import {
   Delete as DeleteIcon, Edit as EditIcon, Refresh as RefreshIcon,
-  ContentCopy as CopyIcon, ExpandMore as ExpandIcon, ExpandLess as CollapseIcon
+  ContentCopy as CopyIcon, ExpandMore as ExpandIcon, ExpandLess as CollapseIcon,
+  Help as HelpIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -49,6 +50,8 @@ export default function AgentManagement({ notebooks }: Props) {
   const [expandedAgent, setExpandedAgent] = useState<number | null>(null);
   const [readwriteNotebooks, setReadwriteNotebooks] = useState<Notebook[]>([]);
   const [readonlyNotebooks, setReadonlyNotebooks] = useState<Notebook[]>([]);
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false);
+  const [helpAgentName, setHelpAgentName] = useState('');
 
   useEffect(() => {
     loadAgents();
@@ -175,6 +178,11 @@ export default function AgentManagement({ notebooks }: Props) {
     setExpandedAgent(expandedAgent === id ? null : id);
   };
 
+  const showHelp = (agentName: string) => {
+    setHelpAgentName(agentName);
+    setHelpDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -228,6 +236,9 @@ export default function AgentManagement({ notebooks }: Props) {
                 <IconButton size="small" onClick={() => toggleExpand(agent.id)}>
                   {expandedAgent === agent.id ? <CollapseIcon /> : <ExpandIcon />}
                 </IconButton>
+                <IconButton size="small" onClick={() => showHelp(agent.name)}>
+                  <Tooltip title="Setup Guide"><HelpIcon /></Tooltip>
+                </IconButton>
                 <IconButton size="small" onClick={() => handleRegenerateKey(agent.id)}>
                   <Tooltip title="Regenerate API Key"><RefreshIcon /></Tooltip>
                 </IconButton>
@@ -275,13 +286,43 @@ export default function AgentManagement({ notebooks }: Props) {
         <DialogContent>
           {newAPIKey && (
             <Alert severity="success" sx={{ mb: 2 }}>
-              <Typography variant="subtitle2">API Key (copy now, it won't be shown again):</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                <code style={{ wordBreak: 'break-all' }}>{newAPIKey}</code>
+              <Typography variant="subtitle2" gutterBottom>API Key generated. Copy and save it now:</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, mb: 2 }}>
+                <code style={{ wordBreak: 'break-all', flex: 1 }}>{newAPIKey}</code>
                 <IconButton size="small" onClick={() => copyToClipboard(newAPIKey)}>
                   <CopyIcon fontSize="small" />
                 </IconButton>
               </Box>
+              <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>MCP Configuration Example:</Typography>
+              <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.100' }}>
+                <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', m: 0 }}>
+{`{
+  "mcpServers": {
+    "valenote": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "${window.location.origin}/mcp"],
+      "env": { "API_KEY": "${newAPIKey}" }
+    }
+  }
+}`}
+                </Typography>
+              </Paper>
+              <Button
+                size="small"
+                startIcon={<CopyIcon />}
+                onClick={() => copyToClipboard(`{
+  "mcpServers": {
+    "valenote": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "${window.location.origin}/mcp"],
+      "env": { "API_KEY": "${newAPIKey}" }
+    }
+  }
+}`)}
+                sx={{ mt: 1 }}
+              >
+                Copy MCP Config
+              </Button>
             </Alert>
           )}
 
@@ -389,6 +430,90 @@ export default function AgentManagement({ notebooks }: Props) {
               <Button variant="contained" onClick={handleSave}>Save</Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={helpDialogOpen} onClose={() => setHelpDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>How to Configure Agent: {helpAgentName}</DialogTitle>
+        <DialogContent>
+          <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
+            1. MCP Server Configuration (Recommended for Claude Code)
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+            <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+{`// Add to claude_desktop_config.json or .mcp.json:
+{
+  "mcpServers": {
+    "valenote": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "${window.location.origin}/mcp"],
+      "env": {
+        "API_KEY": "YOUR_API_KEY"
+      }
+    }
+  }
+}`}
+            </Typography>
+            <Button
+              size="small"
+              startIcon={<CopyIcon />}
+              onClick={() => copyToClipboard(`{
+  "mcpServers": {
+    "valenote": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "${window.location.origin}/mcp"],
+      "env": {
+        "API_KEY": "YOUR_API_KEY"
+      }
+    }
+  }
+}`)}
+              sx={{ mt: 1 }}
+            >
+              Copy Config
+            </Button>
+          </Paper>
+
+          <Typography variant="subtitle2" gutterBottom>
+            2. REST API Usage
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+            <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+{`# Add to HTTP request headers:
+Authorization: Bearer YOUR_API_KEY
+
+# Example - List notebooks:
+curl -H "Authorization: Bearer YOUR_API_KEY" \\
+  ${window.location.origin}/api/v1/agent/notebooks
+
+# Example - Search notes:
+curl -H "Authorization: Bearer YOUR_API_KEY" \\
+  "${window.location.origin}/api/v1/agent/search?q=keyword"`}
+            </Typography>
+          </Paper>
+
+          <Typography variant="subtitle2" gutterBottom>
+            3. Available API Endpoints
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+            <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+{`GET  /api/v1/agent/notebooks          List accessible notebooks
+GET  /api/v1/agent/notes               List notes
+GET  /api/v1/agent/notes/:path         Read note content
+POST /api/v1/agent/notes               Create note
+PUT  /api/v1/agent/notes/:path         Update note
+GET  /api/v1/agent/search?q=keyword    Search notes`}
+            </Typography>
+          </Paper>
+
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              API keys are only shown once when created or regenerated. If you forget your key, click "Regenerate API Key" to get a new one.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHelpDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -50,10 +50,10 @@ const editorTheme = EditorView.theme({
     backgroundColor: '#e8e8e8',
   },
   '.cm-activeLine': {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   '.cm-selectionBackground': {
-    backgroundColor: '#d7e8fc !important',
+    backgroundColor: '#b3d4fc !important',
   },
   '&.cm-focused .cm-selectionBackground': {
     backgroundColor: '#b3d4fc !important',

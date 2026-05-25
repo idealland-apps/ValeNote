@@ -106,19 +106,23 @@ function DraggableTreeItem({ node, expandedIds, selectedId, currentNotePath, not
     <TreeItem
       ref={ref}
       itemId={node.id}
-      sx={isCurrentNote ? {
+      sx={{
         '& > .MuiTreeItem-content': {
-          bgcolor: 'rgba(33, 150, 243, 0.12)',
-          borderRadius: 1,
+          py: 0,
+          minHeight: 24,
+          ...(isCurrentNote && {
+            bgcolor: 'rgba(33, 150, 243, 0.12)',
+            borderRadius: 1,
+          }),
         },
-      } : undefined}
+      }}
       label={
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 1,
-            py: 0.5,
+            gap: 0.5,
+            py: 0,
             opacity: isDragging ? 0.5 : 1,
             bgcolor: isOver && canDrop ? 'action.hover' : 'transparent',
             borderRadius: 1,
@@ -127,7 +131,7 @@ function DraggableTreeItem({ node, expandedIds, selectedId, currentNotePath, not
           onContextMenu={(e) => onContextMenu(e, node)}
         >
           {icon}
-          <Typography variant="body2" noWrap sx={{ flexGrow: 1 }}>
+          <Typography variant="body2" noWrap sx={{ flexGrow: 1, fontSize: '0.8rem' }}>
             {node.label}
           </Typography>
         </Box>
@@ -270,6 +274,30 @@ export default function FileTree({
           onClose={closeMenu}
           anchorReference="anchorPosition"
           anchorPosition={contextMenu ? { top: contextMenu.y, left: contextMenu.x } : undefined}
+          transitionDuration={0}
+          slotProps={{
+            paper: {
+              sx: {
+                '& .MuiMenuItem-root': {
+                  py: 0.25,
+                  minHeight: 24,
+                  fontSize: '0.75rem',
+                },
+                '& .MuiListItemIcon-root': {
+                  minWidth: 24,
+                },
+                '& .MuiListItemText-primary': {
+                  fontSize: '0.75rem',
+                },
+                '& .MuiDivider-root': {
+                  my: 0.25,
+                },
+                '& .MuiSvgIcon-root': {
+                  fontSize: '1rem',
+                },
+              },
+            },
+          }}
         >
           {isRootContext && (
             <MenuItem onClick={() => { onCreateNotebook(); closeMenu(); }}>
