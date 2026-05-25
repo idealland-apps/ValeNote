@@ -13,8 +13,6 @@ NC='\033[0m' # No Color
 LATEST=true
 VERSION=""
 IMAGE_NAME="bytetopia/valenote"
-PLATFORMS="linux/amd64"
-BUILDER_NAME="valenote-builder"
 
 # Function to display help
 show_help() {
@@ -25,7 +23,6 @@ show_help() {
     echo "Options:"
     echo "  -v, --version VERSION    Version to publish"
     echo "  --no-latest              Don't tag as latest"
-    echo "  --platform PLATFORMS     Target platforms (default: linux/amd64)"
     echo "  -h, --help               Show this help message"
     echo
     echo "Image will be published to: $IMAGE_NAME"
@@ -45,10 +42,6 @@ while [[ $# -gt 0 ]]; do
         --no-latest)
             LATEST=false
             shift
-            ;;
-        --platform)
-            PLATFORMS="$2"
-            shift 2
             ;;
         -h|--help)
             show_help
@@ -87,7 +80,6 @@ echo
 echo -e "${CYAN}Publishing Configuration:${NC}"
 echo "  Image: $IMAGE_NAME"
 echo "  Version: $VERSION"
-echo "  Platforms: $PLATFORMS"
 echo "  Tag as latest: $LATEST"
 echo
 
@@ -110,31 +102,39 @@ if ! docker login -u "$DOCKER_USERNAME"; then
 fi
 
 echo
-echo -e "${CYAN}Step 2: Setting up multi-arch builder...${NC}"
-if ! docker buildx inspect "$BUILDER_NAME" > /dev/null 2>&1; then
-    echo "Creating new buildx builder: $BUILDER_NAME"
-    docker buildx create --name "$BUILDER_NAME" --use
-else
-    docker buildx use "$BUILDER_NAME"
-fi
-docker buildx inspect --bootstrap
-
-echo
-echo -e "${CYAN}Step 3: Building and pushing multi-arch image...${NC}"
+echo -e "${CYAN}Step 2: Building and pushing image (linux/amd64)...${NC}"
 
 TAGS="-t $IMAGE_NAME:$VERSION"
 if [[ "$LATEST" == true ]]; then
     TAGS="$TAGS -t $IMAGE_NAME:latest"
 fi
 
-if ! docker buildx build --platform "$PLATFORMS" $TAGS --build-arg VERSION="$VERSION" --push .; then
+BUILD_ARGS="--build-arg VERSION=$VERSION"
+
+# Detect proxy from environment (check both upper and lower case)
+PROXY_HTTP="${HTTP_PROXY:-$http_proxy}"
+PROXY_HTTPS="${HTTPS_PROXY:-$https_proxy}"
+
+# Convert localhost to host.docker.internal for Docker container access
+if [[ -n "$PROXY_HTTP" ]]; then
+    DOCKER_HTTP_PROXY=$(echo "$PROXY_HTTP" | sed 's/127\.0\.0\.1/host.docker.internal/g' | sed 's/localhost/host.docker.internal/g')
+    BUILD_ARGS="$BUILD_ARGS --build-arg HTTP_PROXY=$DOCKER_HTTP_PROXY --build-arg http_proxy=$DOCKER_HTTP_PROXY"
+    echo -e "${YELLOW}Using HTTP_PROXY: $DOCKER_HTTP_PROXY${NC}"
+fi
+if [[ -n "$PROXY_HTTPS" ]]; then
+    DOCKER_HTTPS_PROXY=$(echo "$PROXY_HTTPS" | sed 's/127\.0\.0\.1/host.docker.internal/g' | sed 's/localhost/host.docker.internal/g')
+    BUILD_ARGS="$BUILD_ARGS --build-arg HTTPS_PROXY=$DOCKER_HTTPS_PROXY --build-arg https_proxy=$DOCKER_HTTPS_PROXY"
+    echo -e "${YELLOW}Using HTTPS_PROXY: $DOCKER_HTTPS_PROXY${NC}"
+fi
+
+if ! docker buildx build --platform linux/amd64 $TAGS $BUILD_ARGS --push .; then
     echo -e "${RED}ERROR: Build and push failed${NC}" >&2
     exit 1
 fi
 
-echo -e "${GREEN}Pushed $IMAGE_NAME:$VERSION for platforms: $PLATFORMS${NC}"
+echo -e "${GREEN}Pushed $IMAGE_NAME:$VERSION${NC}"
 if [[ "$LATEST" == true ]]; then
-    echo -e "${GREEN}Pushed $IMAGE_NAME:latest for platforms: $PLATFORMS${NC}"
+    echo -e "${GREEN}Pushed $IMAGE_NAME:latest${NC}"
 fi
 
 echo
