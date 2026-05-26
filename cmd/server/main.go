@@ -35,9 +35,6 @@ func main() {
 		log.Fatalf("Failed to create versions directory: %v", err)
 	}
 
-	hub := service.NewHub()
-	go hub.Run()
-
 	authService := service.NewAuthService(db, cfg)
 	noteService := service.NewNoteService(db, cfg)
 
@@ -65,7 +62,6 @@ func main() {
 	attachmentHandler := handler.NewAttachmentHandler(attachmentService)
 	versionHandler := handler.NewVersionHandler(versionService, noteService)
 	exportHandler := handler.NewExportHandler(exportService, authService)
-	wsHandler := handler.NewWebSocketHandler(hub, authService)
 	mcpHandler := handler.NewMCPHandler(mcpServer, agentService)
 	publicHandler := handler.NewPublicHandler(publicService)
 	linkHandler := handler.NewLinkHandler(linkService)
@@ -79,8 +75,6 @@ func main() {
 	r := gin.Default()
 
 	r.Use(corsMiddleware())
-
-	r.GET("/ws", wsHandler.HandleWebSocket)
 
 	r.GET("/mcp/sse", mcpHandler.HandleSSE)
 	r.POST("/mcp", mcpHandler.HandleMCP)
@@ -134,8 +128,6 @@ func main() {
 			protected.GET("/attachments/*path", attachmentHandler.Serve)
 
 			protected.POST("/export/token", exportHandler.GetExportToken)
-
-			protected.GET("/editors", wsHandler.GetEditors)
 
 			protected.GET("/settings/public-path", publicHandler.GetPublicBasePath)
 			protected.PUT("/settings/public-path", publicHandler.SetPublicBasePath)

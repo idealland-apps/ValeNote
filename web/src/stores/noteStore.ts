@@ -1,6 +1,16 @@
 import { create } from 'zustand';
 import { noteApi, notebookApi, fileApi, folderApi } from '../services/api';
-import type { Note, Notebook, FileItem } from '../services/api';
+import type { Note, Notebook, FileItem, ConflictDetail } from '../services/api';
+import axios from 'axios';
+
+export class ConflictError extends Error {
+  detail: ConflictDetail;
+  constructor(message: string, detail: ConflictDetail) {
+    super(message);
+    this.name = 'ConflictError';
+    this.detail = detail;
+  }
+}
 
 interface NoteState {
   notebooks: Notebook[];
@@ -16,6 +26,7 @@ interface NoteState {
   loadNote: (path: string) => Promise<void>;
   createNote: (data: { path: string; title?: string; content: string; tags?: string[] }) => Promise<Note>;
   updateNote: (path: string, content: string, append?: boolean) => Promise<void>;
+  forceUpdateNote: (path: string, content: string) => Promise<void>;
   deleteNote: (path: string) => Promise<void>;
   searchNotes: (query: string, notebook?: string, tags?: string[]) => Promise<Note[]>;
   setCurrentNote: (note: Note | null) => void;
@@ -80,7 +91,23 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
 
   updateNote: async (path: string, content: string, append = false) => {
-    const { data: note } = await noteApi.update(path, { content, append });
+    const currentNote = get().currentNote;
+    const etag = currentNote?.path === path ? currentNote.etag : undefined;
+    try {
+      const { data: note } = await noteApi.update(path, { content, append, etag });
+      const notes = get().notes.map((n) => (n.path === path ? note : n));
+      set({ notes, currentNote: note });
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const conflictData = error.response.data as { message: string; detail: ConflictDetail };
+        throw new ConflictError(conflictData.message, conflictData.detail);
+      }
+      throw error;
+    }
+  },
+
+  forceUpdateNote: async (path: string, content: string) => {
+    const { data: note } = await noteApi.update(path, { content });
     const notes = get().notes.map((n) => (n.path === path ? note : n));
     set({ notes, currentNote: note });
   },

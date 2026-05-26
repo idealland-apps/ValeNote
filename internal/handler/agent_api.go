@@ -171,7 +171,7 @@ func (h *AgentAPIHandler) UpdateNote(c *gin.Context) {
 		Append:  req.Append,
 	}
 
-	note, err := h.noteService.UpdateNote(path, noteReq, 0)
+	note, _, err := h.noteService.UpdateNote(path, noteReq, 0)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update note"})
 		return

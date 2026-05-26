@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline, CircularProgress, Box } from '@mui/material';
 import { getTheme } from './theme';
 import { useAuthStore } from './stores/authStore';
-import { useWebSocketStore } from './stores/websocketStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { useSiteStore } from './stores/siteStore';
 import { PUBLIC_BASE_PATH } from './constants';
@@ -11,20 +10,9 @@ import LoginPage from './pages/LoginPage';
 import MainPage from './pages/MainPage';
 import PublicIndexPage from './pages/PublicIndexPage';
 import PublicNotebookPage from './pages/PublicNotebookPage';
-import NotificationBar from './components/NotificationBar';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading, token } = useAuthStore();
-  const { connect, disconnect } = useWebSocketStore();
-
-  useEffect(() => {
-    if (user && token) {
-      connect(token);
-    }
-    return () => {
-      disconnect();
-    };
-  }, [user, token, connect, disconnect]);
+  const { user, isLoading } = useAuthStore();
 
   if (isLoading) {
     return (
@@ -38,12 +26,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  return (
-    <>
-      <NotificationBar />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
 
 function App() {

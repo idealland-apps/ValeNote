@@ -1,15 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack, Snackbar, Alert } from '@mui/material';
+import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
 import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, Delete as DeleteIcon, History as HistoryIcon, AttachFile as AttachFileIcon } from '@mui/icons-material';
-import { useNoteStore } from '../stores/noteStore';
-import { useWebSocketStore } from '../stores/websocketStore';
-import type { Note } from '../services/api';
+import { useNoteStore, ConflictError } from '../stores/noteStore';
+import type { Note, ConflictDetail } from '../services/api';
 import MarkdownRenderer from './MarkdownRenderer';
 import MarkdownEditor from './MarkdownEditor';
 import VersionHistoryDialog from './VersionHistoryDialog';
 import AttachmentManagerDialog from './AttachmentManagerDialog';
-import ConflictDialog from './ConflictDialog';
-import { EditorIndicator } from './NotificationBar';
 
 interface Props {
   note: Note;
@@ -22,6 +19,65 @@ function getInitialMode(): 'edit' | 'preview' {
   return saved === 'preview' ? 'preview' : 'edit';
 }
 
+interface ConflictDialogProps {
+  open: boolean;
+  onClose: () => void;
+  detail: ConflictDetail | null;
+  onForceOverwrite: () => void;
+  onDiscard: () => void;
+}
+
+function ConflictDialog({ open, onClose, detail, onForceOverwrite, onDiscard }: ConflictDialogProps) {
+  if (!detail) return null;
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleString();
+    } catch {
+      return dateStr;
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Edit Conflict</DialogTitle>
+      <DialogContent>
+        <DialogContentText sx={{ mb: 2 }}>
+          This note has been modified elsewhere while you were editing. Please choose how to proceed:
+        </DialogContentText>
+        <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 1, mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Server version info:
+          </Typography>
+          <Typography variant="body2">
+            Modified at: {formatDate(detail.modified_at)}
+          </Typography>
+          <Typography variant="body2">
+            File size: {detail.size} bytes
+          </Typography>
+          {detail.preview && (
+            <Typography variant="body2" sx={{ mt: 1, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+              Preview: {detail.preview}
+            </Typography>
+          )}
+        </Box>
+        <DialogContentText variant="body2" color="text.secondary">
+          Note: Whichever option you choose, the overwritten version can be recovered from version history.
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onDiscard} color="warning">
+          Discard My Changes
+        </Button>
+        <Button onClick={onForceOverwrite} color="error" variant="contained">
+          Force Overwrite
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function NoteEditor({ note }: Props) {
   const [content, setContent] = useState(note.content || '');
   const [mode, setMode] = useState<'edit' | 'preview'>(getInitialMode);
@@ -29,10 +85,9 @@ export default function NoteEditor({ note }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
-  const { updateNote, deleteNote, setCurrentNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
-  const { focusNote, blurNote, conflict, clearConflict } = useWebSocketStore();
+  const [conflictDialog, setConflictDialog] = useState<{ open: boolean; detail: ConflictDetail | null }>({ open: false, detail: null });
+  const { updateNote, forceUpdateNote, deleteNote, setCurrentNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
 
-  const conflictOpen = conflict !== null && conflict.path === note.path;
   const isDirty = content !== (note.content || '');
 
   const contentRef = useRef(content);
@@ -42,11 +97,7 @@ export default function NoteEditor({ note }: Props) {
 
   useEffect(() => {
     setContent(note.content || '');
-    focusNote(note.path);
-    return () => {
-      blurNote();
-    };
-  }, [note.path, note.content, focusNote, blurNote]);
+  }, [note.path, note.content]);
 
   useEffect(() => {
     setDirtyChecker(() => contentRef.current !== (noteContentRef.current || ''));
@@ -68,13 +119,36 @@ export default function NoteEditor({ note }: Props) {
     setSaving(true);
     try {
       await updateNote(note.path, content);
-      setSnackbar({ open: true, message: '保存成功', severity: 'success' });
-    } catch {
-      setSnackbar({ open: true, message: '保存失败', severity: 'error' });
+      setSnackbar({ open: true, message: 'Saved', severity: 'success' });
+    } catch (error) {
+      if (error instanceof ConflictError) {
+        setConflictDialog({ open: true, detail: error.detail });
+      } else {
+        setSnackbar({ open: true, message: 'Save failed', severity: 'error' });
+      }
     } finally {
       setSaving(false);
     }
   }, [note.path, content, updateNote]);
+
+  const handleForceOverwrite = async () => {
+    setConflictDialog({ open: false, detail: null });
+    setSaving(true);
+    try {
+      await forceUpdateNote(note.path, content);
+      setSnackbar({ open: true, message: 'Force overwritten', severity: 'success' });
+    } catch {
+      setSnackbar({ open: true, message: 'Save failed', severity: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    setConflictDialog({ open: false, detail: null });
+    loadNote(note.path);
+    setSnackbar({ open: true, message: 'Loaded server version', severity: 'success' });
+  };
 
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this note?')) {
@@ -85,16 +159,6 @@ export default function NoteEditor({ note }: Props) {
 
   const handleVersionRestore = () => {
     loadNote(note.path);
-  };
-
-  const handleConflictResolve = async (resolvedContent: string) => {
-    setContent(resolvedContent);
-    setSaving(true);
-    try {
-      await updateNote(note.path, resolvedContent);
-    } finally {
-      setSaving(false);
-    }
   };
 
   useEffect(() => {
@@ -115,14 +179,13 @@ export default function NoteEditor({ note }: Props) {
           {note.title || note.path.split('/').pop()}
           {isDirty && (
             <Chip
-              label="未保存"
+              label="Unsaved"
               size="small"
               color="warning"
               sx={{ fontSize: '0.7rem', height: 20 }}
             />
           )}
         </Typography>
-        <EditorIndicator notePath={note.path} />
         <Stack direction="row" spacing={0.5}>
           {note.tags?.map((tag) => (
             <Chip key={tag} label={tag} />
@@ -172,11 +235,11 @@ export default function NoteEditor({ note }: Props) {
         onInsert={(link) => setContent((prev) => prev + '\n' + link)}
       />
       <ConflictDialog
-        open={conflictOpen}
-        onClose={clearConflict}
-        notePath={note.path}
-        localContent={content}
-        onResolve={handleConflictResolve}
+        open={conflictDialog.open}
+        onClose={() => setConflictDialog({ open: false, detail: null })}
+        detail={conflictDialog.detail}
+        onForceOverwrite={handleForceOverwrite}
+        onDiscard={handleDiscardChanges}
       />
       <Snackbar
         open={snackbar.open}

@@ -57,6 +57,19 @@ export interface Note {
   size: number;
   created_at: string;
   updated_at: string;
+  etag?: string;
+}
+
+export interface ConflictDetail {
+  modified_at: string;
+  size: number;
+  preview: string;
+}
+
+export interface ConflictError {
+  error: 'conflict';
+  message: string;
+  detail: ConflictDetail;
 }
 
 export const authApi = {
@@ -100,7 +113,7 @@ export const noteApi = {
   get: (path: string) => api.get<Note>(`/notes/${path}`),
   create: (data: { path: string; title?: string; content: string; tags?: string[] }) =>
     api.post<Note>('/notes', data),
-  update: (path: string, data: { content: string; append?: boolean }) =>
+  update: (path: string, data: { content: string; append?: boolean; etag?: string }) =>
     api.put<Note>(`/notes/${path}`, data),
   delete: (path: string) => api.delete(`/notes/${path}`),
   search: (q: string, notebook?: string, tags?: string[], limit = 20) =>

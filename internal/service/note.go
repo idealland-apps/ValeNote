@@ -42,6 +42,15 @@ type Note struct {
 	Size      int64     `json:"size"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	ETag      string    `json:"etag,omitempty"`
+}
+
+var ErrConflict = errors.New("conflict")
+
+type ConflictDetail struct {
+	ModifiedAt time.Time `json:"modified_at"`
+	Size       int64     `json:"size"`
+	Preview    string    `json:"preview"`
 }
 
 type FileItem struct {
@@ -64,6 +73,7 @@ type UpdateNoteRequest struct {
 	Title   string   `json:"title,omitempty"`
 	Tags    []string `json:"tags,omitempty"`
 	Append  bool     `json:"append,omitempty"`
+	ETag    string   `json:"etag,omitempty"`
 }
 
 func (s *NoteService) ValidatePath(userPath string) (string, error) {
@@ -215,6 +225,7 @@ func (s *NoteService) GetNote(path string) (*Note, error) {
 
 	info, _ := os.Stat(fullPath)
 	title, tags := parseFrontmatter(content)
+	etag := sha256sum(content)[:16]
 
 	return &Note{
 		Path:      cleanPath,
@@ -223,6 +234,7 @@ func (s *NoteService) GetNote(path string) (*Note, error) {
 		Tags:      tags,
 		Size:      info.Size(),
 		UpdatedAt: info.ModTime(),
+		ETag:      etag,
 	}, nil
 }
 
@@ -258,10 +270,10 @@ func (s *NoteService) CreateNote(req *CreateNoteRequest, userID int64) (*Note, e
 	return s.GetNote(cleanPath)
 }
 
-func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int64) (*Note, error) {
+func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int64) (*Note, *ConflictDetail, error) {
 	cleanPath, err := s.ValidatePath(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if !strings.HasSuffix(cleanPath, ".md") {
@@ -273,9 +285,25 @@ func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int
 	existingContent, err := os.ReadFile(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrNoteNotFound
+			return nil, nil, ErrNoteNotFound
 		}
-		return nil, err
+		return nil, nil, err
+	}
+
+	if req.ETag != "" {
+		currentETag := sha256sum(existingContent)[:16]
+		if currentETag != req.ETag {
+			info, _ := os.Stat(fullPath)
+			preview := string(existingContent)
+			if len(preview) > 100 {
+				preview = preview[:100] + "..."
+			}
+			return nil, &ConflictDetail{
+				ModifiedAt: info.ModTime(),
+				Size:       info.Size(),
+				Preview:    preview,
+			}, ErrConflict
+		}
 	}
 
 	s.SaveVersion(cleanPath, existingContent, userID)
@@ -288,12 +316,13 @@ func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int
 	}
 
 	if err := os.WriteFile(fullPath, []byte(newContent), 0644); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	s.indexNote(cleanPath)
 
-	return s.GetNote(cleanPath)
+	note, err := s.GetNote(cleanPath)
+	return note, nil, err
 }
 
 func (s *NoteService) DeleteNote(path string) error {
