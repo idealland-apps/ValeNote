@@ -193,4 +193,14 @@ export const folderApi = {
   delete: (path: string) => api.delete(`/folders/${path}`),
 };
 
+export const settingsApi = {
+  uploadFavicon: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/settings/favicon', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 export default api;

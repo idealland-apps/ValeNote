@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack, Snackbar, Alert } from '@mui/material';
 import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, Delete as DeleteIcon, History as HistoryIcon, AttachFile as AttachFileIcon } from '@mui/icons-material';
 import { useNoteStore } from '../stores/noteStore';
@@ -29,10 +29,16 @@ export default function NoteEditor({ note }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
-  const { updateNote, deleteNote, setCurrentNote, loadNote } = useNoteStore();
+  const { updateNote, deleteNote, setCurrentNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
   const { focusNote, blurNote, conflict, clearConflict } = useWebSocketStore();
 
   const conflictOpen = conflict !== null && conflict.path === note.path;
+  const isDirty = content !== (note.content || '');
+
+  const contentRef = useRef(content);
+  const noteContentRef = useRef(note.content);
+  contentRef.current = content;
+  noteContentRef.current = note.content;
 
   useEffect(() => {
     setContent(note.content || '');
@@ -41,6 +47,22 @@ export default function NoteEditor({ note }: Props) {
       blurNote();
     };
   }, [note.path, note.content, focusNote, blurNote]);
+
+  useEffect(() => {
+    setDirtyChecker(() => contentRef.current !== (noteContentRef.current || ''));
+    return () => clearDirtyChecker();
+  }, [note.path, setDirtyChecker, clearDirtyChecker]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (contentRef.current !== (noteContentRef.current || '')) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [note.path]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -89,8 +111,16 @@ export default function NoteEditor({ note }: Props) {
   return (
     <Paper sx={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+        <Typography variant="h6" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           {note.title || note.path.split('/').pop()}
+          {isDirty && (
+            <Chip
+              label="未保存"
+              size="small"
+              color="warning"
+              sx={{ fontSize: '0.7rem', height: 20 }}
+            />
+          )}
         </Typography>
         <EditorIndicator notePath={note.path} />
         <Stack direction="row" spacing={0.5}>
@@ -138,6 +168,7 @@ export default function NoteEditor({ note }: Props) {
         open={attachmentOpen}
         onClose={() => setAttachmentOpen(false)}
         notePath={note.path}
+        markdownContent={content}
         onInsert={(link) => setContent((prev) => prev + '\n' + link)}
       />
       <ConflictDialog

@@ -1,7 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Box, Table, TableBody, TableRow, TableCell, Chip, CircularProgress } from '@mui/material';
+import { Box, Table, TableBody, TableRow, TableCell, Chip, CircularProgress, IconButton, Tooltip, Typography } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CheckIcon from '@mui/icons-material/Check';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import api from '../services/api';
 
 interface Props {
@@ -80,12 +84,14 @@ function parseYaml(yaml: string): Frontmatter | null {
 }
 
 const markdownStyles = {
+  wordBreak: 'break-word',
+  overflowWrap: 'anywhere',
   '& h1': { fontSize: '2em', fontWeight: 'bold', mt: 2, mb: 1, borderBottom: '1px solid', borderColor: 'divider', pb: 1 },
   '& h2': { fontSize: '1.5em', fontWeight: 'bold', mt: 2, mb: 1, borderBottom: '1px solid', borderColor: 'divider', pb: 0.5 },
   '& h3': { fontSize: '1.25em', fontWeight: 'bold', mt: 2, mb: 1 },
   '& p': { mb: 1.5, lineHeight: 1.7 },
   '& code': { bgcolor: 'grey.100', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace', fontSize: '0.9em' },
-  '& pre': { bgcolor: 'grey.100', p: 2, borderRadius: 1, overflow: 'auto', '& code': { bgcolor: 'transparent', p: 0 } },
+  '& pre': { bgcolor: 'grey.100', p: 2, borderRadius: 1, overflow: 'auto', position: 'relative', '& code': { bgcolor: 'transparent', p: 0 } },
   '& blockquote': { borderLeft: '3px solid', borderColor: 'grey.300', pl: 2, ml: 0, color: 'text.secondary' },
   '& ul, & ol': { pl: 3, mb: 1.5 },
   '& li': { mb: 0.5 },
@@ -94,6 +100,58 @@ const markdownStyles = {
   '& img': { maxWidth: '100%' },
   '& a': { color: 'primary.main' },
 };
+
+function CodeBlock({ children, language }: { children?: React.ReactNode; language?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const code = String(children).replace(/\n$/, '');
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Box sx={{ position: 'relative', my: 2 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          bgcolor: 'grey.200',
+          px: 1.5,
+          py: 0.5,
+          borderTopLeftRadius: 4,
+          borderTopRightRadius: 4,
+        }}
+      >
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+          {language || 'text'}
+        </Typography>
+        <Tooltip title={copied ? '已复制' : '复制代码'}>
+          <IconButton size="small" onClick={handleCopy} sx={{ p: 0.5 }}>
+            {copied ? <CheckIcon sx={{ fontSize: 16 }} /> : <ContentCopyIcon sx={{ fontSize: 16 }} />}
+          </IconButton>
+        </Tooltip>
+      </Box>
+      <SyntaxHighlighter
+        style={oneLight}
+        language={language || 'text'}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          borderTopLeftRadius: 0,
+          borderTopRightRadius: 0,
+          borderBottomLeftRadius: 4,
+          borderBottomRightRadius: 4,
+        }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </Box>
+  );
+}
 
 const blobCache = new Map<string, string>();
 
@@ -269,8 +327,21 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
   }, [resolveUrl, isPublic, notebook]);
 
   const components = useMemo(() => {
+    const codeComponent = {
+      code: ({ children, className, ...props }: { children?: React.ReactNode; className?: string; node?: unknown }) => {
+        const match = /language-(\w+)/.exec(className || '');
+        const isInline = !match && !String(children).includes('\n');
+        if (isInline) {
+          return <code className={className} {...props}>{children}</code>;
+        }
+        return <CodeBlock language={match?.[1]}>{children}</CodeBlock>;
+      },
+      pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    };
+
     if (isPublic) {
       return {
+        ...codeComponent,
         a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
           const resolvedHref = href ? transformUrl(href) : undefined;
           return <PublicLink href={resolvedHref}>{children}</PublicLink>;
@@ -278,6 +349,7 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
       };
     }
     return {
+      ...codeComponent,
       img: ({ src, alt }: { src?: string; alt?: string }) => {
         const resolvedSrc = src ? transformUrl(src) : undefined;
         return <AuthenticatedImage src={resolvedSrc} alt={alt} />;

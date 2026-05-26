@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from '@mui/material';
 
 interface RenameDialogProps {
@@ -12,13 +12,26 @@ interface RenameDialogProps {
 export default function RenameDialog({ open, onClose, onConfirm, currentName, type }: RenameDialogProps) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setName(currentName);
       setError('');
+      setTimeout(() => {
+        const input = inputRef.current;
+        if (input) {
+          input.focus();
+          const dotIndex = currentName.lastIndexOf('.');
+          if (dotIndex > 0 && type === 'file') {
+            input.setSelectionRange(0, dotIndex);
+          } else {
+            input.select();
+          }
+        }
+      }, 0);
     }
-  }, [open, currentName]);
+  }, [open, currentName, type]);
 
   const handleSubmit = () => {
     const trimmed = name.trim();
@@ -42,7 +55,7 @@ export default function RenameDialog({ open, onClose, onConfirm, currentName, ty
       <DialogTitle>Rename {type === 'folder' ? 'Folder' : 'File'}</DialogTitle>
       <DialogContent>
         <TextField
-          autoFocus
+          inputRef={inputRef}
           fullWidth
           label="New name"
           value={name}
@@ -51,14 +64,6 @@ export default function RenameDialog({ open, onClose, onConfirm, currentName, ty
           helperText={error}
           margin="dense"
           onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-          onFocus={(e) => {
-            const dotIndex = e.target.value.lastIndexOf('.');
-            if (dotIndex > 0 && type === 'file') {
-              e.target.setSelectionRange(0, dotIndex);
-            } else {
-              e.target.select();
-            }
-          }}
         />
       </DialogContent>
       <DialogActions>

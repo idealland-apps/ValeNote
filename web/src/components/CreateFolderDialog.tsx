@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from '@mui/material';
 import { isReservedFolderName, RESERVED_FOLDER_NAMES } from '../constants';
 
@@ -12,11 +12,13 @@ interface CreateFolderDialogProps {
 export default function CreateFolderDialog({ open, onClose, onConfirm, parentPath }: CreateFolderDialogProps) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setName('');
       setError('');
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [open]);
 
@@ -42,7 +44,7 @@ export default function CreateFolderDialog({ open, onClose, onConfirm, parentPat
       <DialogTitle>New Folder</DialogTitle>
       <DialogContent>
         <TextField
-          autoFocus
+          inputRef={inputRef}
           fullWidth
           label="Folder name"
           value={name}

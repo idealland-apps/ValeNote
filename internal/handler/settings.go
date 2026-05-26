@@ -1,20 +1,26 @@
 package handler
 
 import (
+	"encoding/base64"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
-	"github.com/idealland-apps/valenote/internal/model"
 	"github.com/gin-gonic/gin"
+	"github.com/idealland-apps/valenote/internal/model"
 	"gorm.io/gorm"
 )
 
 type SettingsHandler struct {
-	db *gorm.DB
+	db         *gorm.DB
+	webDistPath string
 }
 
-func NewSettingsHandler(db *gorm.DB) *SettingsHandler {
-	return &SettingsHandler{db: db}
+func NewSettingsHandler(db *gorm.DB, webDistPath string) *SettingsHandler {
+	return &SettingsHandler{db: db, webDistPath: webDistPath}
 }
 
 type SystemSettings struct {
@@ -101,4 +107,73 @@ func (h *SettingsHandler) GetSiteName(c *gin.Context) {
 		siteName = s.Value
 	}
 	c.JSON(http.StatusOK, gin.H{"site_name": siteName})
+}
+
+func (h *SettingsHandler) UploadFavicon(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+
+	if file.Size > 2*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large (max 2MB)"})
+		return
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open file"})
+		return
+	}
+	defer src.Close()
+
+	data, err := io.ReadAll(src)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
+		return
+	}
+
+	mimeType := http.DetectContentType(data)
+
+	// Check if it's already an SVG (DetectContentType returns text/xml for SVG)
+	if len(data) > 5 && string(data[:5]) == "<?xml" || (len(data) > 4 && string(data[:4]) == "<svg") {
+		// It's an SVG, save directly
+		faviconPath := filepath.Join(h.webDistPath, "favicon.svg")
+		if err := os.WriteFile(faviconPath, data, 0644); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save favicon"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "favicon updated"})
+		return
+	}
+
+	// Check if it's a supported image type
+	supportedTypes := map[string]bool{
+		"image/png":  true,
+		"image/jpeg": true,
+		"image/gif":  true,
+		"image/webp": true,
+		"image/bmp":  true,
+		"image/x-icon": true,
+		"image/vnd.microsoft.icon": true,
+	}
+	if !supportedTypes[mimeType] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported image format"})
+		return
+	}
+
+	// Convert to SVG with embedded base64 image
+	b64 := base64.StdEncoding.EncodeToString(data)
+	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32">
+  <image width="32" height="32" xlink:href="data:%s;base64,%s"/>
+</svg>`, mimeType, b64)
+
+	faviconPath := filepath.Join(h.webDistPath, "favicon.svg")
+	if err := os.WriteFile(faviconPath, []byte(svg), 0644); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save favicon"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "favicon updated"})
 }

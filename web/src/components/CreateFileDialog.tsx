@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 
 interface CreateFileDialogProps {
@@ -19,12 +19,14 @@ export default function CreateFileDialog({ open, onClose, onConfirm, parentPath 
   const [name, setName] = useState('');
   const [fileType, setFileType] = useState('.md');
   const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setName('');
       setFileType('.md');
       setError('');
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [open]);
 
@@ -61,7 +63,7 @@ export default function CreateFileDialog({ open, onClose, onConfirm, parentPath 
           </Select>
         </FormControl>
         <TextField
-          autoFocus
+          inputRef={inputRef}
           fullWidth
           label="File name"
           value={name}

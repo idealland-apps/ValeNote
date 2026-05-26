@@ -43,7 +43,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
       setVersions(data || []);
     } catch (err) {
       console.error('Failed to load versions', err);
-      setError('加载版本历史失败');
+      setError('Failed to load version history');
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
       setPreviewContent(data.content);
     } catch (err) {
       console.error('Failed to load version content', err);
-      setError('加载版本内容失败');
+      setError('Failed to load version content');
     }
   };
 
@@ -70,7 +70,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
       onClose();
     } catch (err) {
       console.error('Failed to restore version', err);
-      setError('恢复版本失败');
+      setError('Failed to restore version');
     } finally {
       setRestoring(false);
     }
@@ -88,15 +88,33 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: '70vw',
+              minWidth: '70vw',
+              maxWidth: '1000px',
+              height: '70vh',
+              minHeight: '70vh',
+              maxHeight: '800px',
+              display: 'flex',
+              flexDirection: 'column',
+            }
+          }
+        }}
+      >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <Typography variant="h6">Version History</Typography>
         <IconButton onClick={onClose} size="small">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ display: 'flex', gap: 2, minHeight: 400 }}>
-        <Box sx={{ width: 300, borderRight: 1, borderColor: 'divider', pr: 2 }}>
+      <DialogContent sx={{ display: 'flex', gap: 2, flex: 1, overflow: 'hidden', p: 2 }}>
+        <Box sx={{ width: 240, minWidth: 240, maxWidth: 240, borderRight: 1, borderColor: 'divider', pr: 2, overflow: 'auto', flexShrink: 0 }}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
               <CircularProgress />
@@ -122,10 +140,10 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
             </List>
           )}
         </Box>
-        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, maxWidth: 'calc(100% - 260px)', overflow: 'hidden' }}>
           {selectedVersion ? (
             <>
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
                 <Typography variant="subtitle2">
                   {formatDate(selectedVersion.created_at)}
                 </Typography>
@@ -141,10 +159,10 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
                   Restore
                 </Button>
               </Box>
-              <Divider />
+              <Divider sx={{ flexShrink: 0 }} />
               <Box
                 sx={{
-                  flexGrow: 1,
+                  flex: 1,
                   overflow: 'auto',
                   mt: 2,
                   p: 2,
@@ -153,6 +171,9 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
                   fontFamily: 'monospace',
                   fontSize: '0.875rem',
                   whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  overflowWrap: 'anywhere',
+                  minHeight: 0,
                 }}
               >
                 {previewContent}
@@ -180,16 +201,16 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
     </Dialog>
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
-        <DialogTitle>确认恢复</DialogTitle>
+        <DialogTitle>Confirm Restore</DialogTitle>
         <DialogContent>
           <Typography>
-            确定要恢复到 {selectedVersion && formatDate(selectedVersion.created_at)} 的版本吗？当前内容将被覆盖。
+            Are you sure you want to restore to the version from {selectedVersion && formatDate(selectedVersion.created_at)}? Current content will be overwritten.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmOpen(false)}>取消</Button>
+          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
           <Button onClick={handleRestore} variant="contained" color="primary" disabled={restoring}>
-            {restoring ? '恢复中...' : '确认恢复'}
+            {restoring ? 'Restoring...' : 'Confirm'}
           </Button>
         </DialogActions>
       </Dialog>

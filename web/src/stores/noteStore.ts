@@ -9,6 +9,7 @@ interface NoteState {
   currentNote: Note | null;
   isLoading: boolean;
   isNoteLoading: boolean;
+  dirtyChecker: (() => boolean) | null;
   loadNotebooks: () => Promise<void>;
   loadNotes: (notebook?: string) => Promise<void>;
   loadFiles: (notebook?: string) => Promise<void>;
@@ -22,6 +23,9 @@ interface NoteState {
   deleteFolder: (path: string) => Promise<void>;
   moveFile: (source: string, target: string) => Promise<void>;
   copyFile: (source: string, target: string) => Promise<void>;
+  setDirtyChecker: (checker: () => boolean) => void;
+  clearDirtyChecker: () => void;
+  checkDirty: () => boolean;
 }
 
 export const useNoteStore = create<NoteState>((set, get) => ({
@@ -31,6 +35,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   currentNote: null,
   isLoading: false,
   isNoteLoading: false,
+  dirtyChecker: null,
 
   loadNotebooks: async () => {
     const { data } = await notebookApi.list();
@@ -122,5 +127,14 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   copyFile: async (source: string, target: string) => {
     await fileApi.copy(source, target);
     await get().loadFiles();
+  },
+
+  setDirtyChecker: (checker: () => boolean) => set({ dirtyChecker: checker }),
+
+  clearDirtyChecker: () => set({ dirtyChecker: null }),
+
+  checkDirty: () => {
+    const checker = get().dirtyChecker;
+    return checker ? checker() : false;
   },
 }));

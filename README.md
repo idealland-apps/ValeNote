@@ -18,7 +18,7 @@ Self-hosted note web app based on markdown. Access anywhere and fully control yo
 
 - Go 1.21+
 - Node.js 18+
-- pnpm (or npm)
+- npm
 
 ## Quick Start
 
@@ -47,10 +47,10 @@ The server will start at `http://localhost:8080`.
 cd web
 
 # Install dependencies
-pnpm install  # or: npm install
+npm install
 
 # Start dev server
-pnpm dev  # or: npm run dev
+npm run dev
 ```
 
 The frontend will start at `http://localhost:5173`.
@@ -95,7 +95,7 @@ Or build manually:
 
 ```bash
 # Build frontend
-cd web && pnpm build && cd ..
+cd web && npm run build && cd ..
 
 # Build server
 go build -o valenote ./cmd/server

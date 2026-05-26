@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Alert } from '@mui/material';
 import { notebookApi } from '../services/api';
 import { isReservedFolderName, RESERVED_FOLDER_NAMES } from '../constants';
@@ -14,6 +14,16 @@ export default function CreateNotebookDialog({ open, onClose, onCreated }: Props
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setDescription('');
+      setError('');
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
 
   const handleCreate = async () => {
     const normalized = name.trim().toLowerCase().replace(/\s+/g, '-');
@@ -53,6 +63,7 @@ export default function CreateNotebookDialog({ open, onClose, onCreated }: Props
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField
+            inputRef={inputRef}
             label="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}

@@ -7,22 +7,22 @@ import {
   Button,
   List,
   ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   Typography,
   Box,
   CircularProgress,
   Alert,
   Tooltip,
+  Chip,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
-  ContentCopy as CopyIcon,
+  ContentCopyOutlined as CopyIcon,
   Upload as UploadIcon,
   InsertDriveFile as FileIcon,
   Image as ImageIcon,
   Download as DownloadIcon,
+  Add as InsertIcon,
 } from '@mui/icons-material';
 import api, { attachmentApi, type AttachmentInfo } from '../services/api';
 
@@ -30,6 +30,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   notePath: string;
+  markdownContent?: string;
   onInsert: (markdownLink: string) => void;
 }
 
@@ -43,7 +44,14 @@ function isImage(mimeType: string): boolean {
   return mimeType.startsWith('image/');
 }
 
-export default function AttachmentManagerDialog({ open, onClose, notePath, onInsert }: Props) {
+function isAttachmentReferenced(attachment: AttachmentInfo, markdownContent: string): boolean {
+  if (!markdownContent) return false;
+  const name = attachment.name;
+  const path = attachment.path;
+  return markdownContent.includes(name) || markdownContent.includes(path);
+}
+
+export default function AttachmentManagerDialog({ open, onClose, notePath, markdownContent, onInsert }: Props) {
   const [attachments, setAttachments] = useState<AttachmentInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,20 +111,25 @@ export default function AttachmentManagerDialog({ open, onClose, notePath, onIns
   };
 
   const handleInsert = (attachment: AttachmentInfo) => {
-    const link = isImage(attachment.mime_type)
-      ? `![${attachment.name}](${attachment.path})`
-      : `[${attachment.name}](${attachment.path})`;
+    const link = getMarkdownLink(attachment);
     onInsert(link);
     onClose();
   };
 
-  const handleCopyPath = async (path: string) => {
+  const getMarkdownLink = (attachment: AttachmentInfo): string => {
+    return isImage(attachment.mime_type)
+      ? `![${attachment.name}](${attachment.path})`
+      : `[${attachment.name}](${attachment.path})`;
+  };
+
+  const handleCopyLink = async (attachment: AttachmentInfo) => {
     try {
-      await navigator.clipboard.writeText(path);
-      setCopySuccess(path);
+      const link = getMarkdownLink(attachment);
+      await navigator.clipboard.writeText(link);
+      setCopySuccess(attachment.path);
       setTimeout(() => setCopySuccess(null), 2000);
     } catch {
-      setError('Failed to copy path');
+      setError('Failed to copy link');
     }
   };
 
@@ -176,65 +189,89 @@ export default function AttachmentManagerDialog({ open, onClose, notePath, onIns
             No attachments
           </Typography>
         ) : (
-          <List>
-            {attachments.map((att) => (
+          <List dense disablePadding>
+            {attachments.map((att) => {
+              const isUsed = isAttachmentReferenced(att, markdownContent || '');
+              return (
               <ListItem
                 key={att.name}
                 sx={{
                   border: 1,
                   borderColor: 'divider',
                   borderRadius: 1,
-                  mb: 1,
-                  cursor: 'pointer',
+                  mb: 0.5,
+                  py: 0.25,
+                  px: 1,
+                  minHeight: 36,
+                  opacity: isUsed ? 1 : 0.7,
                   '&:hover': { bgcolor: 'action.hover' },
                 }}
-                onClick={() => handleInsert(att)}
               >
                 {isImage(att.mime_type) ? (
-                  <ImageIcon sx={{ mr: 2, color: 'primary.main' }} />
+                  <ImageIcon sx={{ mr: 1, color: 'primary.main', fontSize: 18 }} />
                 ) : (
-                  <FileIcon sx={{ mr: 2, color: 'text.secondary' }} />
+                  <FileIcon sx={{ mr: 1, color: 'text.secondary', fontSize: 18 }} />
                 )}
-                <ListItemText
-                  primary={att.name}
-                  secondary={formatFileSize(att.size)}
-                />
-                <ListItemSecondaryAction>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexGrow: 1, minWidth: 0 }}>
+                  <Typography variant="body2" noWrap sx={{ flexShrink: 1, minWidth: 0 }}>{att.name}</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', flexShrink: 0 }}>
+                    {formatFileSize(att.size)}
+                  </Typography>
+                  {!isUsed && (
+                    <Chip
+                      label="Unused"
+                      size="small"
+                      sx={{
+                        height: 16,
+                        fontSize: '0.6rem',
+                        bgcolor: 'action.disabledBackground',
+                        color: 'text.secondary',
+                        '& .MuiChip-label': { px: 0.75 },
+                      }}
+                    />
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', ml: 1 }}>
+                  <Tooltip title="Insert">
+                    <IconButton
+                      size="small"
+                      sx={{ p: 0.5 }}
+                      color="primary"
+                      onClick={() => handleInsert(att)}
+                    >
+                      <InsertIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={copySuccess === att.path ? 'Copied!' : 'Copy link'}>
+                    <IconButton
+                      size="small"
+                      sx={{ p: 0.5 }}
+                      onClick={() => handleCopyLink(att)}
+                    >
+                      <CopyIcon sx={{ fontSize: 13 }} />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Download">
                     <IconButton
                       size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownload(att);
-                      }}
+                      sx={{ p: 0.5 }}
+                      onClick={() => handleDownload(att)}
                     >
-                      <DownloadIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title={copySuccess === att.path ? 'Copied!' : 'Copy path'}>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCopyPath(att.path);
-                      }}
-                    >
-                      <CopyIcon fontSize="small" />
+                      <DownloadIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                   </Tooltip>
                   <IconButton
                     size="small"
+                    sx={{ p: 0.5 }}
                     color="error"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(att.name);
-                    }}
+                    onClick={() => handleDelete(att.name)}
                   >
-                    <DeleteIcon fontSize="small" />
+                    <DeleteIcon sx={{ fontSize: 16 }} />
                   </IconButton>
-                </ListItemSecondaryAction>
+                </Box>
               </ListItem>
-            ))}
+              );
+            })}
           </List>
         )}
       </DialogContent>

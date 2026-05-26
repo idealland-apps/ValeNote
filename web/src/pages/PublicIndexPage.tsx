@@ -1,9 +1,14 @@
+import { useEffect } from 'react';
 import { Box, AppBar, Toolbar, Typography, Container, Alert, Link } from '@mui/material';
 import { useSiteStore } from '../stores/siteStore';
 import { PUBLIC_BASE_PATH } from '../constants';
 
 export default function PublicIndexPage() {
   const { siteName, showPoweredBy } = useSiteStore();
+
+  useEffect(() => {
+    document.title = siteName;
+  }, [siteName]);
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>

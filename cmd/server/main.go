@@ -56,6 +56,8 @@ func main() {
 	agentService := service.NewAgentService(db)
 	userService := service.NewUserService(db)
 
+	webDistPath := filepath.Join("web", "dist")
+
 	mcpServer := mcp.NewServer(noteService, searchService, agentService)
 
 	authHandler := handler.NewAuthHandler(authService)
@@ -70,7 +72,7 @@ func main() {
 	remoteSyncHandler := handler.NewRemoteSyncHandler(remoteSyncService)
 	tagHandler := handler.NewTagHandler(searchService)
 	agentHandler := handler.NewAgentHandler(agentService)
-	settingsHandler := handler.NewSettingsHandler(db)
+	settingsHandler := handler.NewSettingsHandler(db, webDistPath)
 	userHandler := handler.NewUserHandler(userService, authService)
 	agentAPIHandler := handler.NewAgentAPIHandler(noteService, searchService, agentService)
 
@@ -150,6 +152,7 @@ func main() {
 
 			protected.GET("/settings/system", settingsHandler.GetSettings)
 			protected.PUT("/settings/system", settingsHandler.UpdateSettings)
+			protected.POST("/settings/favicon", settingsHandler.UploadFavicon)
 
 			protected.GET("/agents", agentHandler.ListAgents)
 			protected.POST("/agents", agentHandler.CreateAgent)
@@ -207,7 +210,6 @@ func main() {
 	}
 
 	// Serve static files for SPA
-	webDistPath := filepath.Join("web", "dist")
 	if _, err := os.Stat(webDistPath); err == nil {
 		r.Static("/assets", filepath.Join(webDistPath, "assets"))
 		r.StaticFile("/favicon.svg", filepath.Join(webDistPath, "favicon.svg"))

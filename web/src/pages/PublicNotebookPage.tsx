@@ -92,6 +92,16 @@ export default function PublicNotebookPage() {
   }, [notebook]);
 
   useEffect(() => {
+    if (!notebook) {
+      document.title = siteName;
+      return;
+    }
+
+    const currentTitle = subPath ? subPath.split('/').pop()?.replace(/\.md$/, '') || notebook : notebook;
+    document.title = `${currentTitle} - ${siteName}`;
+  }, [notebook, subPath, siteName]);
+
+  useEffect(() => {
     if (!notebook || !tree) return;
 
     const urlPath = subPath ? `${notebook}/${subPath}` : notebook;

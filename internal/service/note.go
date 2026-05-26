@@ -628,8 +628,8 @@ func (s *NoteService) buildNoteContent(title, content string, tags []string) str
 		tagsJSON, _ := json.Marshal(tags)
 		sb.WriteString("tags: " + string(tagsJSON) + "\n")
 	}
-	sb.WriteString("created: " + time.Now().Format(time.RFC3339) + "\n")
-	sb.WriteString("updated: " + time.Now().Format(time.RFC3339) + "\n")
+	sb.WriteString("created: " + time.Now().Format("2006-01-02 15:04:05") + "\n")
+	sb.WriteString("updated: " + time.Now().Format("2006-01-02 15:04:05") + "\n")
 	sb.WriteString("---\n\n")
 	if title != "" {
 		sb.WriteString("# " + title + "\n\n")

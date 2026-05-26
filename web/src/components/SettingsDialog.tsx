@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, Tabs, Tab, Box, List, ListItem, ListItemText,
   ListItemSecondaryAction, Select, MenuItem, Slider, Typography, Divider,
@@ -10,7 +10,7 @@ import AgentManagement from './AgentManagement';
 import UserManagement from './UserManagement';
 import RemoteStorageDialog from './RemoteStorageDialog';
 import { useSiteStore } from '../stores/siteStore';
-import api from '../services/api';
+import api, { settingsApi } from '../services/api';
 
 interface Props {
   open: boolean;
@@ -58,6 +58,9 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
   const [remoteStorageOpen, setRemoteStorageOpen] = useState(false);
   const [reservedPaths, setReservedPaths] = useState<string[]>([]);
   const [appVersion, setAppVersion] = useState('loading...');
+  const [faviconUploading, setFaviconUploading] = useState(false);
+  const [faviconKey, setFaviconKey] = useState(Date.now());
+  const faviconInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -123,6 +126,32 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
       setError('Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError('File too large (max 2MB)');
+      return;
+    }
+
+    setFaviconUploading(true);
+    setError('');
+    try {
+      await settingsApi.uploadFavicon(file);
+      setFaviconKey(Date.now());
+      setSuccess('Favicon updated');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch {
+      setError('Failed to upload favicon');
+    } finally {
+      setFaviconUploading(false);
+      if (faviconInputRef.current) {
+        faviconInputRef.current.value = '';
+      }
     }
   };
 
@@ -221,6 +250,41 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                     >
                       Save
                     </Button>
+                  </Box>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Site Favicon
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Upload a custom favicon for your site. Supports PNG, JPG, SVG, ICO, GIF, WebP, and BMP formats (max 2MB).
+                  </Typography>
+
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <Box
+                      component="img"
+                      src={`/favicon.svg?v=${faviconKey}`}
+                      alt="Current favicon"
+                      sx={{ width: 32, height: 32, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
+                    />
+                    <input
+                      ref={faviconInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFaviconUpload}
+                      style={{ display: 'none' }}
+                      id="favicon-upload"
+                    />
+                    <label htmlFor="favicon-upload">
+                      <Button
+                        variant="outlined"
+                        component="span"
+                        disabled={faviconUploading}
+                      >
+                        {faviconUploading ? 'Uploading...' : 'Upload New Favicon'}
+                      </Button>
+                    </label>
                   </Box>
                 </TabPanel>
               )}

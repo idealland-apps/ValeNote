@@ -37,7 +37,7 @@ export default function MainPage() {
   const [clipboardPath, setClipboardPath] = useState<string | null>(null);
 
   const { user, logout } = useAuthStore();
-  const { notebooks, fileItems, currentNote, isLoading, loadNotebooks, loadFiles, loadNote, createNote, deleteNote, createFolder, deleteFolder, moveFile, copyFile } = useNoteStore();
+  const { notebooks, fileItems, currentNote, isLoading, loadNotebooks, loadFiles, loadNote, createNote, deleteNote, createFolder, deleteFolder, moveFile, copyFile, checkDirty } = useNoteStore();
   const { siteName } = useSiteStore();
 
   useEffect(() => {
@@ -47,9 +47,14 @@ export default function MainPage() {
 
   const handleFileSelect = useCallback((path: string) => {
     if (path.endsWith('.md')) {
+      if (checkDirty()) {
+        if (!window.confirm('当前笔记有未保存的修改，确定要离开吗？')) {
+          return;
+        }
+      }
       loadNote(path);
     }
-  }, [loadNote]);
+  }, [loadNote, checkDirty]);
 
   const handleCreateNotebook = useCallback(() => {
     setCreateNotebookOpen(true);
@@ -145,8 +150,13 @@ export default function MainPage() {
   }, [notebooks]);
 
   const handleSearchSelect = useCallback((path: string) => {
+    if (checkDirty()) {
+      if (!window.confirm('当前笔记有未保存的修改，确定要离开吗？')) {
+        return;
+      }
+    }
     loadNote(path);
-  }, [loadNote]);
+  }, [loadNote, checkDirty]);
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
