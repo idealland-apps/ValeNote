@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -270,7 +271,7 @@ func (s *NoteService) CreateNote(req *CreateNoteRequest, userID int64) (*Note, e
 	return s.GetNote(cleanPath)
 }
 
-func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int64) (*Note, *ConflictDetail, error) {
+func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int64, agentID int64) (*Note, *ConflictDetail, error) {
 	cleanPath, err := s.ValidatePath(path)
 	if err != nil {
 		return nil, nil, err
@@ -306,7 +307,7 @@ func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int
 		}
 	}
 
-	s.SaveVersion(cleanPath, existingContent, userID)
+	s.SaveVersion(cleanPath, existingContent, userID, agentID)
 
 	var newContent string
 	if req.Append {
@@ -457,7 +458,7 @@ func (s *NoteService) indexNote(path string) error {
 	return s.db.Where("path = ?", path).Assign(metadata).FirstOrCreate(&metadata).Error
 }
 
-func (s *NoteService) SaveVersion(path string, content []byte, userID int64) error {
+func (s *NoteService) SaveVersion(path string, content []byte, userID int64, agentID int64) error {
 	checksum := sha256sum(content)[:6]
 	versionDir := s.getVersionDir(path)
 
@@ -465,7 +466,16 @@ func (s *NoteService) SaveVersion(path string, content []byte, userID int64) err
 		return err
 	}
 
-	versionFileName := filepath.Join(versionDir, time.Now().Format("20060102-150405")+"-"+checksum+".md")
+	// Format: 20060102-150405-{checksum}-{type}-{id}.md
+	// type: u = user, a = agent
+	var modifierSuffix string
+	if agentID > 0 {
+		modifierSuffix = fmt.Sprintf("-a-%d", agentID)
+	} else if userID > 0 {
+		modifierSuffix = fmt.Sprintf("-u-%d", userID)
+	}
+
+	versionFileName := filepath.Join(versionDir, time.Now().Format("20060102-150405")+"-"+checksum+modifierSuffix+".md")
 	if err := os.WriteFile(versionFileName, content, 0644); err != nil {
 		return err
 	}

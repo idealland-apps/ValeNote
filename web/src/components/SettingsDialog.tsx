@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, Tabs, Tab, Box, List, ListItem, ListItemText,
   ListItemSecondaryAction, Select, MenuItem, Slider, Typography, Divider,
-  TextField, Button, Alert, CircularProgress, Switch
+  TextField, Button, Alert, CircularProgress, Switch, Tooltip
 } from '@mui/material';
-import { useSettingsStore } from '../stores/settingsStore';
+import { Colorize as ColorizeIcon } from '@mui/icons-material';
+import { useSettingsStore, THEME_COLOR_OPTIONS } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
 import AgentManagement from './AgentManagement';
 import UserManagement from './UserManagement';
@@ -40,7 +41,7 @@ interface SystemSettings {
 }
 
 export default function SettingsDialog({ open, onClose, notebooks }: Props) {
-  const { themeMode, editorFontSize, setThemeMode, setEditorFontSize } = useSettingsStore();
+  const { themeMode, primaryColor, editorFontSize, smartPasteLink, setThemeMode, setPrimaryColor, setEditorFontSize, setSmartPasteLink } = useSettingsStore();
   const currentUser = useAuthStore((s) => s.user);
   const isAdmin = currentUser?.is_admin ?? false;
   const [tabIndex, setTabIndex] = useState(0);
@@ -61,6 +62,31 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
   const [faviconUploading, setFaviconUploading] = useState(false);
   const [faviconKey, setFaviconKey] = useState(Date.now());
   const faviconInputRef = useRef<HTMLInputElement>(null);
+
+  const showAutoSaveSuccess = useCallback(() => {
+    setSuccess('Saved');
+    setTimeout(() => setSuccess(''), 2000);
+  }, []);
+
+  const handleThemeChange = useCallback((mode: 'light' | 'dark' | 'system') => {
+    setThemeMode(mode);
+    showAutoSaveSuccess();
+  }, [setThemeMode, showAutoSaveSuccess]);
+
+  const handlePrimaryColorChange = useCallback((color: string) => {
+    setPrimaryColor(color);
+    showAutoSaveSuccess();
+  }, [setPrimaryColor, showAutoSaveSuccess]);
+
+  const handleFontSizeChange = useCallback((size: number) => {
+    setEditorFontSize(size);
+    showAutoSaveSuccess();
+  }, [setEditorFontSize, showAutoSaveSuccess]);
+
+  const handleSmartPasteLinkChange = useCallback((enabled: boolean) => {
+    setSmartPasteLink(enabled);
+    showAutoSaveSuccess();
+  }, [setSmartPasteLink, showAutoSaveSuccess]);
 
   useEffect(() => {
     if (open) {
@@ -165,6 +191,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
 
           <Tabs value={tabIndex} onChange={(_, v) => setTabIndex(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tab label="Appearance" />
+            <Tab label="Editor" />
             {isAdmin && <Tab label="Site" />}
             <Tab label="Agents" />
             {isAdmin && <Tab label="Users" />}
@@ -189,7 +216,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                     <ListItemSecondaryAction>
                       <Select
                         value={themeMode}
-                        onChange={(e) => setThemeMode(e.target.value as 'light' | 'dark' | 'system')}
+                        onChange={(e) => handleThemeChange(e.target.value as 'light' | 'dark' | 'system')}
                         size="small"
                       >
                         <MenuItem value="light">Light</MenuItem>
@@ -202,30 +229,106 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                   <Divider />
 
                   <ListItem>
-                    <Box sx={{ width: '100%' }}>
-                      <Typography gutterBottom>
-                        Editor Font Size: {editorFontSize}px
-                      </Typography>
+                    <ListItemText
+                      primary="Primary Color"
+                      secondary="Choose the accent color for the interface"
+                    />
+                    <ListItemSecondaryAction>
+                      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                        {THEME_COLOR_OPTIONS.map((option) => (
+                          <Box
+                            key={option.color}
+                            onClick={() => handlePrimaryColorChange(option.color)}
+                            title={option.name}
+                            sx={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: '50%',
+                              bgcolor: option.color,
+                              cursor: 'pointer',
+                              border: primaryColor === option.color ? '2px solid' : '2px solid transparent',
+                              borderColor: primaryColor === option.color ? 'text.primary' : 'transparent',
+                              '&:hover': {
+                                transform: 'scale(1.1)',
+                              },
+                              transition: 'transform 0.1s',
+                            }}
+                          />
+                        ))}
+
+                        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+
+                        <Tooltip title="Custom color">
+                          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <ColorizeIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 0.5 }} />
+                            <Box
+                              component="input"
+                              type="color"
+                              value={primaryColor}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handlePrimaryColorChange(e.target.value)}
+                              sx={{
+                                width: 24,
+                                height: 24,
+                                padding: 0,
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: '50%',
+                                cursor: 'pointer',
+                                '&::-webkit-color-swatch-wrapper': { padding: 0 },
+                                '&::-webkit-color-swatch': { border: 'none', borderRadius: '50%' },
+                                '&::-moz-color-swatch': { border: 'none', borderRadius: '50%' },
+                              }}
+                            />
+                          </Box>
+                        </Tooltip>
+                      </Box>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                </List>
+              </TabPanel>
+
+              <TabPanel value={tabIndex} index={1}>
+                <List>
+                  <ListItem>
+                    <ListItemText
+                      primary="Font Size"
+                      secondary={`${editorFontSize}px`}
+                    />
+                    <ListItemSecondaryAction sx={{ width: 200 }}>
                       <Slider
                         value={editorFontSize}
-                        onChange={(_, value) => setEditorFontSize(value as number)}
+                        onChange={(_, value) => handleFontSizeChange(value as number)}
                         min={12}
                         max={24}
                         step={1}
                         marks={[
                           { value: 12, label: '12' },
-                          { value: 16, label: '16' },
-                          { value: 20, label: '20' },
+                          { value: 18, label: '18' },
                           { value: 24, label: '24' },
                         ]}
                       />
-                    </Box>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+
+                  <Divider />
+
+                  <ListItem>
+                    <ListItemText
+                      primary="Smart Paste Link"
+                      secondary="When pasting a URL with HTML format, automatically convert it to Markdown link with title"
+                    />
+                    <ListItemSecondaryAction>
+                      <Switch
+                        checked={smartPasteLink}
+                        onChange={(e) => handleSmartPasteLinkChange(e.target.checked)}
+                      />
+                    </ListItemSecondaryAction>
                   </ListItem>
                 </List>
               </TabPanel>
 
               {isAdmin && (
-                <TabPanel value={tabIndex} index={1}>
+                <TabPanel value={tabIndex} index={2}>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                     Configure the site name that appears in the page title, sidebar, and public pages.
                   </Typography>
@@ -289,17 +392,17 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                 </TabPanel>
               )}
 
-              <TabPanel value={tabIndex} index={isAdmin ? 2 : 1}>
+              <TabPanel value={tabIndex} index={isAdmin ? 3 : 2}>
                 <AgentManagement notebooks={notebooks} />
               </TabPanel>
 
               {isAdmin && (
-                <TabPanel value={tabIndex} index={3}>
+                <TabPanel value={tabIndex} index={4}>
                   <UserManagement />
                 </TabPanel>
               )}
 
-              <TabPanel value={tabIndex} index={isAdmin ? 4 : 2}>
+              <TabPanel value={tabIndex} index={isAdmin ? 5 : 3}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                   Configure the base URL path for publicly accessible notebooks.
                   Public notebooks can be accessed at: <code>{window.location.origin}{publicPath}/[notebook-name]/</code>
@@ -370,7 +473,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                 </Box>
               </TabPanel>
 
-              <TabPanel value={tabIndex} index={isAdmin ? 5 : 3}>
+              <TabPanel value={tabIndex} index={isAdmin ? 6 : 4}>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   Version History
                 </Typography>
@@ -457,7 +560,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                 </Button>
               </TabPanel>
 
-              <TabPanel value={tabIndex} index={isAdmin ? 6 : 4}>
+              <TabPanel value={tabIndex} index={isAdmin ? 7 : 5}>
                 <Box sx={{ textAlign: 'center', py: 4 }}>
                   <Typography variant="h4" sx={{ mb: 2, fontWeight: 'bold' }}>
                     ValeNote

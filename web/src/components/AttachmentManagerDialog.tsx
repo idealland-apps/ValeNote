@@ -26,6 +26,10 @@ import {
 } from '@mui/icons-material';
 import api, { attachmentApi, type AttachmentInfo } from '../services/api';
 
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -137,7 +141,7 @@ export default function AttachmentManagerDialog({ open, onClose, notePath, markd
     try {
       const noteDir = notePath.substring(0, notePath.lastIndexOf('/'));
       const resolvedPath = noteDir ? `${noteDir}/${attachment.path.slice(2)}` : attachment.path.slice(2);
-      const response = await api.get(`/attachments/${resolvedPath}`, { responseType: 'blob' });
+      const response = await api.get(`/attachments/${encodePath(resolvedPath)}`, { responseType: 'blob' });
       const url = URL.createObjectURL(response.data);
       const a = document.createElement('a');
       a.href = url;

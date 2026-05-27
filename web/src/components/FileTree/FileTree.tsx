@@ -223,10 +223,7 @@ export default function FileTree({
 
   const handleTreeSelectChange = useCallback((_event: React.SyntheticEvent | null, nodeId: string | null) => {
     handleSelectChange(_event, nodeId);
-    if (nodeId && typeof nodeId === 'string' && nodeId.endsWith('.md')) {
-      onFileSelect(nodeId);
-    }
-  }, [handleSelectChange, onFileSelect]);
+  }, [handleSelectChange]);
 
   const menuNode = contextMenu?.node;
   const isFolder = menuNode?.type === 'folder' || menuNode === null;

@@ -51,12 +51,15 @@ func (h *VersionHandler) GetVersionContent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":         version.ID,
-		"note_path":  version.NotePath,
-		"content":    content,
-		"size":       version.Size,
-		"checksum":   version.Checksum,
-		"created_at": version.CreatedAt,
+		"id":            version.ID,
+		"note_path":     version.NotePath,
+		"content":       content,
+		"size":          version.Size,
+		"checksum":      version.Checksum,
+		"modifier_type": version.ModifierType,
+		"modifier_id":   version.ModifierID,
+		"modifier_name": version.ModifierName,
+		"created_at":    version.CreatedAt,
 	})
 }
 

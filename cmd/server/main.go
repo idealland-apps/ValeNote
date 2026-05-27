@@ -146,6 +146,9 @@ func main() {
 			protected.PUT("/settings/system", settingsHandler.UpdateSettings)
 			protected.POST("/settings/favicon", settingsHandler.UploadFavicon)
 
+			protected.GET("/settings/user", settingsHandler.GetUserSettings)
+			protected.PUT("/settings/user", settingsHandler.UpdateUserSettings)
+
 			protected.GET("/agents", agentHandler.ListAgents)
 			protected.POST("/agents", agentHandler.CreateAgent)
 			protected.GET("/agents/:id", agentHandler.GetAgent)

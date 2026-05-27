@@ -3,6 +3,10 @@ import { Box, Typography, List, ListItemButton, ListItemText, Collapse, IconButt
 import { ExpandMore as ExpandIcon, Link as LinkIcon } from '@mui/icons-material';
 import api from '../services/api';
 
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
 interface Backlink {
   path: string;
   title: string;
@@ -23,7 +27,7 @@ export default function BacklinksPanel({ notePath, onNavigate }: Props) {
     if (!notePath) return;
 
     setLoading(true);
-    api.get<Backlink[]>(`/backlinks/${notePath}`)
+    api.get<Backlink[]>(`/backlinks/${encodePath(notePath)}`)
       .then(({ data }) => setBacklinks(data || []))
       .catch(() => setBacklinks([]))
       .finally(() => setLoading(false));

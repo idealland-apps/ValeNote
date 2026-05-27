@@ -23,11 +23,14 @@ func NewVersionService(db *gorm.DB, cfg *config.Config) *VersionService {
 }
 
 type Version struct {
-	ID        string    `json:"id"`
-	NotePath  string    `json:"note_path"`
-	Size      int64     `json:"size"`
-	Checksum  string    `json:"checksum"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	NotePath     string    `json:"note_path"`
+	Size         int64     `json:"size"`
+	Checksum     string    `json:"checksum"`
+	ModifierType string    `json:"modifier_type,omitempty"` // "u" for user, "a" for agent, empty for legacy
+	ModifierID   int64     `json:"modifier_id,omitempty"`
+	ModifierName string    `json:"modifier_name,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 func (s *VersionService) getVersionDir(notePath string) string {
@@ -37,21 +40,48 @@ func (s *VersionService) getVersionDir(notePath string) string {
 	return filepath.Join(s.cfg.Notes.VersionsPath, dir, base)
 }
 
-func (s *VersionService) parseVersionFile(filename string) (time.Time, string, error) {
+func (s *VersionService) parseVersionFile(filename string) (time.Time, string, string, int64, error) {
 	base := strings.TrimSuffix(filename, ".md")
 	parts := strings.Split(base, "-")
 	if len(parts) < 3 {
-		return time.Time{}, "", os.ErrInvalid
+		return time.Time{}, "", "", 0, os.ErrInvalid
 	}
 
 	dateStr := parts[0] + "-" + parts[1]
 	createdAt, err := time.ParseInLocation("20060102-150405", dateStr, time.Local)
 	if err != nil {
-		return time.Time{}, "", err
+		return time.Time{}, "", "", 0, err
 	}
 
 	checksum := parts[2]
-	return createdAt, checksum, nil
+
+	// New format: 20060102-150405-{checksum}-{type}-{id}.md
+	var modifierType string
+	var modifierID int64
+	if len(parts) == 5 {
+		modifierType = parts[3]
+		modifierID, _ = strconv.ParseInt(parts[4], 10, 64)
+	}
+
+	return createdAt, checksum, modifierType, modifierID, nil
+}
+
+func (s *VersionService) getModifierName(modifierType string, modifierID int64) string {
+	if modifierType == "" || modifierID == 0 {
+		return ""
+	}
+	if modifierType == "u" {
+		var user model.User
+		if err := s.db.Select("username").First(&user, modifierID).Error; err == nil {
+			return user.Username
+		}
+	} else if modifierType == "a" {
+		var agent model.Agent
+		if err := s.db.Select("name").First(&agent, modifierID).Error; err == nil {
+			return agent.Name
+		}
+	}
+	return ""
 }
 
 func (s *VersionService) ListVersions(notePath string, limit int) ([]Version, error) {
@@ -74,7 +104,7 @@ func (s *VersionService) ListVersions(notePath string, limit int) ([]Version, er
 			continue
 		}
 
-		createdAt, checksum, err := s.parseVersionFile(entry.Name())
+		createdAt, checksum, modifierType, modifierID, err := s.parseVersionFile(entry.Name())
 		if err != nil {
 			continue
 		}
@@ -85,11 +115,14 @@ func (s *VersionService) ListVersions(notePath string, limit int) ([]Version, er
 		}
 
 		versions = append(versions, Version{
-			ID:        entry.Name(),
-			NotePath:  notePath,
-			Size:      info.Size(),
-			Checksum:  checksum,
-			CreatedAt: createdAt,
+			ID:           entry.Name(),
+			NotePath:     notePath,
+			Size:         info.Size(),
+			Checksum:     checksum,
+			ModifierType: modifierType,
+			ModifierID:   modifierID,
+			ModifierName: s.getModifierName(modifierType, modifierID),
+			CreatedAt:    createdAt,
 		})
 	}
 
@@ -118,14 +151,17 @@ func (s *VersionService) GetVersionContent(notePath, versionID string) (string, 
 		return "", nil, err
 	}
 
-	createdAt, checksum, _ := s.parseVersionFile(versionID)
+	createdAt, checksum, modifierType, modifierID, _ := s.parseVersionFile(versionID)
 
 	version := &Version{
-		ID:        versionID,
-		NotePath:  notePath,
-		Size:      info.Size(),
-		Checksum:  checksum,
-		CreatedAt: createdAt,
+		ID:           versionID,
+		NotePath:     notePath,
+		Size:         info.Size(),
+		Checksum:     checksum,
+		ModifierType: modifierType,
+		ModifierID:   modifierID,
+		ModifierName: s.getModifierName(modifierType, modifierID),
+		CreatedAt:    createdAt,
 	}
 
 	return string(content), version, nil
@@ -144,7 +180,7 @@ func (s *VersionService) RestoreVersion(notePath, versionID string, userID int64
 	}
 
 	if len(currentContent) > 0 {
-		noteService.SaveVersion(notePath, currentContent, userID)
+		noteService.SaveVersion(notePath, currentContent, userID, 0)
 	}
 
 	return os.WriteFile(currentPath, []byte(content), 0644)
@@ -187,7 +223,7 @@ func (s *VersionService) CleanupOldVersions(notePath string) error {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		createdAt, _, err := s.parseVersionFile(entry.Name())
+		createdAt, _, _, _, err := s.parseVersionFile(entry.Name())
 		if err != nil {
 			continue
 		}

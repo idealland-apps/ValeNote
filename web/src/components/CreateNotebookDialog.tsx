@@ -26,7 +26,7 @@ export default function CreateNotebookDialog({ open, onClose, onCreated }: Props
   }, [open]);
 
   const handleCreate = async () => {
-    const normalized = name.trim().toLowerCase().replace(/\s+/g, '-');
+    const normalized = name.trim();
     if (!normalized) return;
     if (isReservedFolderName(normalized)) {
       setError(`"${normalized}" is a reserved name (${RESERVED_FOLDER_NAMES.join(', ')})`);
@@ -68,7 +68,7 @@ export default function CreateNotebookDialog({ open, onClose, onCreated }: Props
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="my-notebook"
-            helperText="Lowercase letters, numbers, and hyphens only"
+            helperText="Letters, numbers, spaces, and hyphens are allowed"
             fullWidth
             required
           />

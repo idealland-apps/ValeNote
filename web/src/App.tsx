@@ -13,8 +13,15 @@ import PublicNotebookPage from './pages/PublicNotebookPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuthStore();
+  const { loaded: settingsLoaded, loadSettings } = useSettingsStore();
 
-  if (isLoading) {
+  useEffect(() => {
+    if (user && !settingsLoaded) {
+      loadSettings();
+    }
+  }, [user, settingsLoaded, loadSettings]);
+
+  if (isLoading || (user && !settingsLoaded)) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -31,7 +38,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   const { checkAuth } = useAuthStore();
-  const { themeMode } = useSettingsStore();
+  const { themeMode, primaryColor } = useSettingsStore();
   const { siteName, loadSiteSettings } = useSiteStore();
   const [systemDark, setSystemDark] = useState(
     window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -60,7 +67,7 @@ function App() {
     return themeMode;
   }, [themeMode, systemDark]);
 
-  const theme = useMemo(() => getTheme(effectiveMode), [effectiveMode]);
+  const theme = useMemo(() => getTheme(effectiveMode, primaryColor), [effectiveMode, primaryColor]);
 
   return (
     <ThemeProvider theme={theme}>

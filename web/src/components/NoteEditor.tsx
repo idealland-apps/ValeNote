@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
-import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, Delete as DeleteIcon, History as HistoryIcon, AttachFile as AttachFileIcon } from '@mui/icons-material';
+import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, Delete as DeleteIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon } from '@mui/icons-material';
 import { useNoteStore, ConflictError } from '../stores/noteStore';
 import type { Note, ConflictDetail } from '../services/api';
 import MarkdownRenderer from './MarkdownRenderer';
 import MarkdownEditor from './MarkdownEditor';
 import VersionHistoryDialog from './VersionHistoryDialog';
 import AttachmentManagerDialog from './AttachmentManagerDialog';
+import ExportDialog from './ExportDialog';
 
 interface Props {
   note: Note;
@@ -84,6 +85,7 @@ export default function NoteEditor({ note }: Props) {
   const [saving, setSaving] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [attachmentOpen, setAttachmentOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [conflictDialog, setConflictDialog] = useState<{ open: boolean; detail: ConflictDetail | null }>({ open: false, detail: null });
   const { updateNote, forceUpdateNote, deleteNote, setCurrentNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
@@ -204,6 +206,9 @@ export default function NoteEditor({ note }: Props) {
         <IconButton onClick={handleSave} disabled={saving} color="primary">
           <SaveIcon fontSize="small" />
         </IconButton>
+        <IconButton onClick={() => setExportOpen(true)} title="Export">
+          <ExportIcon fontSize="small" />
+        </IconButton>
         <IconButton onClick={handleDelete} color="error">
           <DeleteIcon fontSize="small" />
         </IconButton>
@@ -233,6 +238,13 @@ export default function NoteEditor({ note }: Props) {
         notePath={note.path}
         markdownContent={content}
         onInsert={(link) => setContent((prev) => prev + '\n' + link)}
+      />
+      <ExportDialog
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        notePath={note.path}
+        noteTitle={note.title || note.path.split('/').pop() || 'note'}
+        content={content}
       />
       <ConflictDialog
         open={conflictDialog.open}

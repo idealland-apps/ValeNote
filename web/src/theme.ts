@@ -256,6 +256,29 @@ export const darkTheme = createTheme({
   },
 });
 
-export const getTheme = (mode: 'light' | 'dark') => {
-  return mode === 'dark' ? darkTheme : lightTheme;
+export const getTheme = (mode: 'light' | 'dark', primaryColor?: string) => {
+  const color = primaryColor || '#1976d2';
+  return createTheme({
+    ...baseTheme,
+    palette: {
+      mode,
+      primary: {
+        main: mode === 'dark' ? lightenColor(color, 0.3) : color,
+      },
+      secondary: {
+        main: mode === 'dark' ? '#ce93d8' : '#9c27b0',
+      },
+      background: mode === 'dark'
+        ? { default: '#121212', paper: '#1e1e1e' }
+        : { default: '#f5f5f5', paper: '#ffffff' },
+    },
+  });
 };
+
+function lightenColor(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * amount));
+  const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * amount));
+  const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * amount));
+  return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+}

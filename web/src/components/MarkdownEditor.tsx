@@ -1,12 +1,12 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { EditorState } from '@codemirror/state';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, dropCursor } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, HighlightStyle, bracketMatching } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import { Box, IconButton, Tooltip, Divider, Snackbar, Alert, CircularProgress } from '@mui/material';
+import { Box, IconButton, Tooltip, Divider, Snackbar, Alert, CircularProgress, useTheme } from '@mui/material';
 import {
   FormatBold,
   FormatItalic,
@@ -21,6 +21,7 @@ import {
   Title,
 } from '@mui/icons-material';
 import { attachmentApi } from '../services/api';
+import { useSettingsStore } from '../stores/settingsStore';
 
 interface Props {
   value: string;
@@ -28,10 +29,10 @@ interface Props {
   notePath?: string;
 }
 
-const editorTheme = EditorView.theme({
+const createEditorTheme = (isDark: boolean) => EditorView.theme({
   '&': {
     height: '100%',
-    fontSize: '14px',
+    ...(isDark && { backgroundColor: '#1e1e1e' }),
   },
   '.cm-scroller': {
     fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
@@ -39,48 +40,54 @@ const editorTheme = EditorView.theme({
   },
   '.cm-content': {
     padding: '8px 0',
+    caretColor: isDark ? '#fff' : '#000',
   },
   '.cm-gutters': {
-    backgroundColor: '#f5f5f5',
-    color: '#999',
+    backgroundColor: isDark ? '#252526' : '#f5f5f5',
+    color: isDark ? '#858585' : '#999',
     border: 'none',
-    borderRight: '1px solid #e0e0e0',
+    borderRight: isDark ? '1px solid #3c3c3c' : '1px solid #e0e0e0',
   },
   '.cm-activeLineGutter': {
-    backgroundColor: '#e8e8e8',
+    backgroundColor: isDark ? '#2a2d2e' : '#e8e8e8',
   },
   '.cm-activeLine': {
     backgroundColor: 'transparent',
   },
   '.cm-selectionBackground': {
-    backgroundColor: '#b3d4fc !important',
+    backgroundColor: isDark ? '#264f78 !important' : '#b3d4fc !important',
   },
   '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: '#b3d4fc !important',
+    backgroundColor: isDark ? '#264f78 !important' : '#b3d4fc !important',
   },
-});
+  '.cm-cursor': {
+    borderLeftColor: isDark ? '#fff' : '#000',
+  },
+}, { dark: isDark });
 
-const markdownHighlightStyle = HighlightStyle.define([
-  { tag: tags.heading1, fontWeight: 'bold' },
-  { tag: tags.heading2, fontWeight: 'bold' },
-  { tag: tags.heading3, fontWeight: 'bold' },
-  { tag: tags.heading4, fontWeight: 'bold' },
-  { tag: tags.heading5, fontWeight: 'bold' },
-  { tag: tags.heading6, fontWeight: 'bold' },
+const createHighlightStyle = (isDark: boolean) => HighlightStyle.define([
+  { tag: tags.heading1, fontWeight: 'bold', color: isDark ? '#dcdcaa' : undefined },
+  { tag: tags.heading2, fontWeight: 'bold', color: isDark ? '#dcdcaa' : undefined },
+  { tag: tags.heading3, fontWeight: 'bold', color: isDark ? '#dcdcaa' : undefined },
+  { tag: tags.heading4, fontWeight: 'bold', color: isDark ? '#dcdcaa' : undefined },
+  { tag: tags.heading5, fontWeight: 'bold', color: isDark ? '#dcdcaa' : undefined },
+  { tag: tags.heading6, fontWeight: 'bold', color: isDark ? '#dcdcaa' : undefined },
   { tag: tags.strong, fontWeight: 'bold' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: tags.link, color: '#1976d2' },
-  { tag: tags.url, color: '#1976d2' },
-  { tag: tags.monospace, fontFamily: 'monospace', backgroundColor: '#f5f5f5' },
-  { tag: tags.quote, color: '#666', fontStyle: 'italic' },
-  { tag: tags.meta, color: '#808080' },
-  { tag: tags.processingInstruction, color: '#808080' },
-  { tag: tags.comment, color: '#808080' },
-  { tag: tags.keyword, color: '#07a' },
-  { tag: tags.string, color: '#690' },
-  { tag: tags.number, color: '#905' },
+  { tag: tags.link, color: isDark ? '#4fc3f7' : '#1976d2' },
+  { tag: tags.url, color: isDark ? '#4fc3f7' : '#1976d2' },
+  { tag: tags.monospace, fontFamily: 'monospace', color: isDark ? '#ce9178' : undefined },
+  { tag: tags.quote, color: isDark ? '#6a9955' : '#666', fontStyle: 'italic' },
+  { tag: tags.meta, color: isDark ? '#808080' : '#808080' },
+  { tag: tags.processingInstruction, color: isDark ? '#808080' : '#808080' },
+  { tag: tags.comment, color: isDark ? '#6a9955' : '#808080' },
+  { tag: tags.keyword, color: isDark ? '#569cd6' : '#07a' },
+  { tag: tags.string, color: isDark ? '#ce9178' : '#690' },
+  { tag: tags.number, color: isDark ? '#b5cea8' : '#905' },
 ]);
+
+const themeCompartment = new Compartment();
 
 export default function MarkdownEditor({ value, onChange, notePath }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -90,6 +97,20 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const notePathRef = useRef(notePath);
+  const smartPasteLink = useSettingsStore((s) => s.smartPasteLink);
+  const smartPasteLinkRef = useRef(smartPasteLink);
+  const editorFontSize = useSettingsStore((s) => s.editorFontSize);
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  const editorThemeExtension = useMemo(
+    () => [createEditorTheme(isDark), syntaxHighlighting(createHighlightStyle(isDark))],
+    [isDark]
+  );
+
+  useEffect(() => {
+    smartPasteLinkRef.current = smartPasteLink;
+  }, [smartPasteLink]);
 
   useEffect(() => {
     notePathRef.current = notePath;
@@ -222,9 +243,10 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
     });
 
     const handlePaste = EditorView.domEventHandlers({
-      paste: (event) => {
+      paste: (event, view) => {
         const items = event.clipboardData?.items;
         if (!items) return false;
+
         for (const item of items) {
           if (item.type.startsWith('image/')) {
             event.preventDefault();
@@ -233,6 +255,28 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
             return true;
           }
         }
+
+        if (smartPasteLinkRef.current) {
+          const html = event.clipboardData?.getData('text/html');
+          if (html) {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const link = doc.querySelector('a');
+            if (link?.href && link.textContent?.trim()) {
+              const title = link.textContent.trim();
+              const url = link.href;
+              if (title !== url) {
+                event.preventDefault();
+                const mdLink = `[${title}](${url})`;
+                const { from, to } = view.state.selection.main;
+                view.dispatch({
+                  changes: { from, to, insert: mdLink },
+                });
+                return true;
+              }
+            }
+          }
+        }
+
         return false;
       },
       drop: (event) => {
@@ -265,8 +309,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
           indentWithTab,
         ]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
-        syntaxHighlighting(markdownHighlightStyle),
-        editorTheme,
+        themeCompartment.of(editorThemeExtension),
         updateListener,
         handlePaste,
         EditorView.lineWrapping,
@@ -289,6 +332,14 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
+    view.dispatch({
+      effects: themeCompartment.reconfigure(editorThemeExtension),
+    });
+  }, [editorThemeExtension]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
     const currentValue = view.state.doc.toString();
     if (currentValue !== value) {
       view.dispatch({
@@ -306,8 +357,9 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
           gap: 0.5,
           px: 1,
           py: 0.5,
-          borderBottom: '1px solid #e0e0e0',
-          backgroundColor: '#fafafa',
+          borderBottom: 1,
+          borderColor: 'divider',
+          backgroundColor: 'action.hover',
           flexWrap: 'wrap',
         }}
       >
@@ -388,6 +440,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
           overflow: 'auto',
           '& .cm-editor': {
             height: '100%',
+            fontSize: `${editorFontSize}px`,
           },
         }}
       />

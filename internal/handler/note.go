@@ -166,7 +166,7 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	note, conflict, err := h.noteService.UpdateNote(path, &req, userID)
+	note, conflict, err := h.noteService.UpdateNote(path, &req, userID, 0)
 	if err != nil {
 		if err == service.ErrConflict {
 			c.JSON(http.StatusConflict, gin.H{

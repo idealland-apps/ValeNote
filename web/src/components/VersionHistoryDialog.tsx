@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, List, ListItemText, ListItemButton, IconButton, Typography, Box, CircularProgress, Divider, Button, Chip, Snackbar, Alert } from '@mui/material';
-import { Restore as RestoreIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Restore as RestoreIcon, Close as CloseIcon, Person as PersonIcon, Android as AndroidIcon } from '@mui/icons-material';
 import api from '../services/api';
+
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
 
 interface Version {
   id: string;
   note_path: string;
   size: number;
   checksum: string;
+  modifier_type?: string; // "u" for user, "a" for agent
+  modifier_id?: number;
+  modifier_name?: string;
   created_at: string;
 }
 
@@ -39,7 +46,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.get<Version[]>(`/versions/${notePath}`);
+      const { data } = await api.get<Version[]>(`/versions/${encodePath(notePath)}`);
       setVersions(data || []);
     } catch (err) {
       console.error('Failed to load versions', err);
@@ -52,7 +59,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
   const loadPreview = async (version: Version) => {
     setSelectedVersion(version);
     try {
-      const { data } = await api.get(`/version/${notePath}?id=${encodeURIComponent(version.id)}`);
+      const { data } = await api.get(`/version/${encodePath(notePath)}?id=${encodeURIComponent(version.id)}`);
       setPreviewContent(data.content);
     } catch (err) {
       console.error('Failed to load version content', err);
@@ -65,7 +72,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
     setConfirmOpen(false);
     setRestoring(true);
     try {
-      await api.post(`/version/${notePath}?id=${encodeURIComponent(selectedVersion.id)}`);
+      await api.post(`/version/${encodePath(notePath)}?id=${encodeURIComponent(selectedVersion.id)}`);
       onRestore();
       onClose();
     } catch (err) {
@@ -84,6 +91,15 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatModifier = (version: Version) => {
+    if (!version.modifier_type || !version.modifier_id) return null;
+    const name = version.modifier_name || `#${version.modifier_id}`;
+    const icon = version.modifier_type === 'a'
+      ? <AndroidIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+      : <PersonIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />;
+    return <>{icon}{name}</>;
   };
 
   return (
@@ -133,7 +149,16 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
                 >
                   <ListItemText
                     primary={formatDate(version.created_at)}
-                    secondary={formatSize(version.size)}
+                    secondary={
+                      <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {formatSize(version.size)}
+                        {formatModifier(version) && (
+                          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', ml: 0.5 }}>
+                            · {formatModifier(version)}
+                          </Box>
+                        )}
+                      </Box>
+                    }
                   />
                 </ListItemButton>
               ))}
@@ -143,11 +168,19 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, maxWidth: 'calc(100% - 260px)', overflow: 'hidden' }}>
           {selectedVersion ? (
             <>
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, flexWrap: 'wrap' }}>
                 <Typography variant="subtitle2">
                   {formatDate(selectedVersion.created_at)}
                 </Typography>
                 <Chip label={formatSize(selectedVersion.size)} size="small" />
+                {selectedVersion.modifier_type && selectedVersion.modifier_id && (
+                  <Chip
+                    icon={selectedVersion.modifier_type === 'a' ? <AndroidIcon /> : <PersonIcon />}
+                    label={selectedVersion.modifier_name || `#${selectedVersion.modifier_id}`}
+                    size="small"
+                    color={selectedVersion.modifier_type === 'a' ? 'secondary' : 'default'}
+                  />
+                )}
                 <Box sx={{ flexGrow: 1 }} />
                 <Button
                   variant="contained"
@@ -166,7 +199,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
                   overflow: 'auto',
                   mt: 2,
                   p: 2,
-                  bgcolor: 'grey.50',
+                  bgcolor: 'action.hover',
                   borderRadius: 1,
                   fontFamily: 'monospace',
                   fontSize: '0.875rem',

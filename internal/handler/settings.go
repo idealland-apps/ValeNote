@@ -177,3 +177,97 @@ func (h *SettingsHandler) UploadFavicon(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "favicon updated"})
 }
+
+type UserSettings struct {
+	ThemeMode      string `json:"theme_mode"`
+	PrimaryColor   string `json:"primary_color"`
+	EditorFontSize int    `json:"editor_font_size"`
+	SidebarWidth   int    `json:"sidebar_width"`
+	SmartPasteLink bool   `json:"smart_paste_link"`
+}
+
+func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	settings := UserSettings{
+		ThemeMode:      "system",
+		PrimaryColor:   "#1976d2",
+		EditorFontSize: 14,
+		SidebarWidth:   280,
+		SmartPasteLink: true,
+	}
+
+	var userSettings []model.UserSetting
+	h.db.Where("user_id = ?", userID).Find(&userSettings)
+
+	for _, s := range userSettings {
+		switch s.Key {
+		case "theme_mode":
+			settings.ThemeMode = s.Value
+		case "primary_color":
+			settings.PrimaryColor = s.Value
+		case "editor_font_size":
+			if v, err := strconv.Atoi(s.Value); err == nil {
+				settings.EditorFontSize = v
+			}
+		case "sidebar_width":
+			if v, err := strconv.Atoi(s.Value); err == nil {
+				settings.SidebarWidth = v
+			}
+		case "smart_paste_link":
+			settings.SmartPasteLink = s.Value == "true"
+		}
+	}
+
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+
+	var req UserSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.ThemeMode == "" {
+		req.ThemeMode = "system"
+	}
+	if req.PrimaryColor == "" {
+		req.PrimaryColor = "#1976d2"
+	}
+	if req.EditorFontSize < 12 {
+		req.EditorFontSize = 12
+	}
+	if req.EditorFontSize > 24 {
+		req.EditorFontSize = 24
+	}
+	if req.SidebarWidth < 200 {
+		req.SidebarWidth = 200
+	}
+	if req.SidebarWidth > 500 {
+		req.SidebarWidth = 500
+	}
+
+	h.upsertUserSetting(userID, "theme_mode", req.ThemeMode)
+	h.upsertUserSetting(userID, "primary_color", req.PrimaryColor)
+	h.upsertUserSetting(userID, "editor_font_size", strconv.Itoa(req.EditorFontSize))
+	h.upsertUserSetting(userID, "sidebar_width", strconv.Itoa(req.SidebarWidth))
+	smartPasteLink := "false"
+	if req.SmartPasteLink {
+		smartPasteLink = "true"
+	}
+	h.upsertUserSetting(userID, "smart_paste_link", smartPasteLink)
+
+	c.JSON(http.StatusOK, req)
+}
+
+func (h *SettingsHandler) upsertUserSetting(userID int64, key, value string) {
+	var s model.UserSetting
+	if err := h.db.Where("user_id = ? AND key = ?", userID, key).First(&s).Error; err != nil {
+		h.db.Create(&model.UserSetting{UserID: userID, Key: key, Value: value})
+	} else {
+		h.db.Model(&s).Update("value", value)
+	}
+}

@@ -93,3 +93,12 @@ type Setting struct {
 	Value     string    `gorm:"not null" json:"value"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+type UserSetting struct {
+	UserID    int64     `gorm:"primaryKey" json:"user_id"`
+	Key       string    `gorm:"primaryKey;size:100" json:"key"`
+	Value     string    `gorm:"not null" json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	User *User `gorm:"foreignKey:UserID" json:"-"`
+}

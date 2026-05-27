@@ -400,7 +400,7 @@ func (s *Server) updateNote(args json.RawMessage, ctx *RequestContext) ([]Conten
 		Append:  params.Append,
 	}
 
-	note, _, err := s.noteService.UpdateNote(params.Path, req, 0)
+	note, _, err := s.noteService.UpdateNote(params.Path, req, 0, ctx.AgentID)
 	if err != nil {
 		return NewErrorContent(err), true
 	}

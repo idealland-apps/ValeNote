@@ -2,6 +2,10 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
 
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
 const api = axios.create({
   baseURL: API_BASE,
   headers: {
@@ -93,10 +97,10 @@ export const notebookApi = {
   list: () => api.get<Notebook[]>('/notebooks'),
   create: (data: { name: string; description?: string }) =>
     api.post<Notebook>('/notebooks', data),
-  get: (name: string) => api.get<Notebook>(`/notebooks/${name}`),
+  get: (name: string) => api.get<Notebook>(`/notebooks/${encodeURIComponent(name)}`),
   update: (name: string, data: { description?: string; is_public?: boolean }) =>
-    api.put<Notebook>(`/notebooks/${name}`, data),
-  delete: (name: string) => api.delete(`/notebooks/${name}`),
+    api.put<Notebook>(`/notebooks/${encodeURIComponent(name)}`, data),
+  delete: (name: string) => api.delete(`/notebooks/${encodeURIComponent(name)}`),
 };
 
 export interface SearchResult {
@@ -110,12 +114,12 @@ export interface SearchResult {
 export const noteApi = {
   list: (notebook?: string, recursive = true) =>
     api.get<Note[]>('/notes', { params: { notebook, recursive } }),
-  get: (path: string) => api.get<Note>(`/notes/${path}`),
+  get: (path: string) => api.get<Note>(`/notes/${encodePath(path)}`),
   create: (data: { path: string; title?: string; content: string; tags?: string[] }) =>
     api.post<Note>('/notes', data),
   update: (path: string, data: { content: string; append?: boolean; etag?: string }) =>
-    api.put<Note>(`/notes/${path}`, data),
-  delete: (path: string) => api.delete(`/notes/${path}`),
+    api.put<Note>(`/notes/${encodePath(path)}`, data),
+  delete: (path: string) => api.delete(`/notes/${encodePath(path)}`),
   search: (q: string, notebook?: string, tags?: string[], limit = 20) =>
     api.get<Note[]>('/search', { params: { q, notebook, tags: tags?.join(','), limit } }),
   searchFulltext: (q: string, notebook?: string, limit = 20) =>
@@ -158,10 +162,10 @@ const publicAxios = axios.create({
 export const publicApi = {
   listNotebooks: () => publicAxios.get<Notebook[]>('/public/notebooks'),
   getSettings: () => publicAxios.get<{ site_name: string; show_powered_by: boolean; public_base_path: string }>('/public/settings'),
-  getTree: (notebook: string) => publicAxios.get<PublicTreeItem>(`/public/${notebook}/tree`),
-  getNote: (notebook: string, path: string) => publicAxios.get<Note>(`/public/${notebook}/note/${path}`),
+  getTree: (notebook: string) => publicAxios.get<PublicTreeItem>(`/public/${encodeURIComponent(notebook)}/tree`),
+  getNote: (notebook: string, path: string) => publicAxios.get<Note>(`/public/${encodeURIComponent(notebook)}/note/${encodePath(path)}`),
   getFolderNotes: (notebook: string, path?: string) => {
-    const url = path ? `/public/${notebook}/folder/${path}` : `/public/${notebook}/folder`;
+    const url = path ? `/public/${encodeURIComponent(notebook)}/folder/${encodePath(path)}` : `/public/${encodeURIComponent(notebook)}/folder`;
     return publicAxios.get<Note[]>(url);
   },
 };
@@ -203,8 +207,16 @@ export const fileApi = {
 
 export const folderApi = {
   create: (path: string) => api.post('/folders', { path }),
-  delete: (path: string) => api.delete(`/folders/${path}`),
+  delete: (path: string) => api.delete(`/folders/${encodePath(path)}`),
 };
+
+export interface UserSettings {
+  theme_mode: string;
+  primary_color: string;
+  editor_font_size: number;
+  sidebar_width: number;
+  smart_paste_link: boolean;
+}
 
 export const settingsApi = {
   uploadFavicon: (file: File) => {
@@ -214,6 +226,8 @@ export const settingsApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  getUserSettings: () => api.get<UserSettings>('/settings/user'),
+  updateUserSettings: (data: UserSettings) => api.put<UserSettings>('/settings/user', data),
 };
 
 export default api;

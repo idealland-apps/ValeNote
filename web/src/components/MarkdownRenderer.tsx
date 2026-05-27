@@ -1,11 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Box, Table, TableBody, TableRow, TableCell, Chip, CircularProgress, IconButton, Tooltip, Typography } from '@mui/material';
+import { Box, Table, TableBody, TableRow, TableCell, Chip, CircularProgress, IconButton, Tooltip, Typography, useTheme } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import api from '../services/api';
 
 interface Props {
@@ -90,9 +90,9 @@ const markdownStyles = {
   '& h2': { fontSize: '1.5em', fontWeight: 'bold', mt: 2, mb: 1, borderBottom: '1px solid', borderColor: 'divider', pb: 0.5 },
   '& h3': { fontSize: '1.25em', fontWeight: 'bold', mt: 2, mb: 1 },
   '& p': { mb: 1.5, lineHeight: 1.7 },
-  '& code': { bgcolor: 'grey.100', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace', fontSize: '0.9em' },
-  '& pre': { bgcolor: 'grey.100', p: 2, borderRadius: 1, overflow: 'auto', position: 'relative', '& code': { bgcolor: 'transparent', p: 0 } },
-  '& blockquote': { borderLeft: '3px solid', borderColor: 'grey.300', pl: 2, ml: 0, color: 'text.secondary' },
+  '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace', fontSize: '0.9em' },
+  '& pre': { bgcolor: 'action.hover', p: 2, borderRadius: 1, overflow: 'auto', position: 'relative', '& code': { bgcolor: 'transparent', p: 0 } },
+  '& blockquote': { borderLeft: '3px solid', borderColor: 'divider', pl: 2, ml: 0, color: 'text.secondary' },
   '& ul, & ol': { pl: 3, mb: 1.5 },
   '& li': { mb: 0.5 },
   '& table': { borderCollapse: 'collapse', width: '100%', mb: 2 },
@@ -101,7 +101,7 @@ const markdownStyles = {
   '& a': { color: 'primary.main' },
 };
 
-function CodeBlock({ children, language }: { children?: React.ReactNode; language?: string }) {
+function CodeBlock({ children, language, isDark }: { children?: React.ReactNode; language?: string; isDark: boolean }) {
   const [copied, setCopied] = useState(false);
 
   const code = String(children).replace(/\n$/, '');
@@ -119,7 +119,7 @@ function CodeBlock({ children, language }: { children?: React.ReactNode; languag
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          bgcolor: 'grey.200',
+          bgcolor: 'action.selected',
           px: 1.5,
           py: 0.5,
           borderTopLeftRadius: 4,
@@ -136,7 +136,7 @@ function CodeBlock({ children, language }: { children?: React.ReactNode; languag
         </Tooltip>
       </Box>
       <SyntaxHighlighter
-        style={oneLight}
+        style={isDark ? oneDark : oneLight}
         language={language || 'text'}
         PreTag="div"
         customStyle={{
@@ -277,6 +277,8 @@ function PublicLink({ href, children }: { href?: string; children?: React.ReactN
 
 export default function MarkdownRenderer({ content, onTagClick, notePath, isPublic, notebook }: Props) {
   const { frontmatter, body } = useMemo(() => parseFrontmatter(content), [content]);
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
   const resolveUrl = useMemo(() => {
     if (!notePath) return (url: string) => url;
@@ -308,6 +310,8 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
   const transformUrl = useMemo(() => {
     const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
 
+    const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/');
+
     return (url: string) => {
       const resolvedPath = resolveUrl(url);
       if (resolvedPath === url && !url.startsWith('./') && !url.startsWith('../')) {
@@ -320,9 +324,9 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
         const pathWithoutNotebook = cleanPath.startsWith(notebook + '/')
           ? cleanPath.slice(notebook.length + 1)
           : cleanPath;
-        return `${apiBase}/public/${notebook}/attachment/${pathWithoutNotebook}`;
+        return `${apiBase}/public/${encodeURIComponent(notebook)}/attachment/${encodePath(pathWithoutNotebook)}`;
       }
-      return `${apiBase}/attachments/${cleanPath}`;
+      return `${apiBase}/attachments/${encodePath(cleanPath)}`;
     };
   }, [resolveUrl, isPublic, notebook]);
 
@@ -334,7 +338,7 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
         if (isInline) {
           return <code className={className} {...props}>{children}</code>;
         }
-        return <CodeBlock language={match?.[1]}>{children}</CodeBlock>;
+        return <CodeBlock language={match?.[1]} isDark={isDark}>{children}</CodeBlock>;
       },
       pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     };
@@ -359,7 +363,7 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
         return <AuthenticatedLink href={resolvedHref}>{children}</AuthenticatedLink>;
       },
     };
-  }, [isPublic, transformUrl]);
+  }, [isPublic, transformUrl, isDark]);
 
   const renderValue = (key: string, value: string | string[] | undefined) => {
     if (key === 'tags' && Array.isArray(value)) {
@@ -384,7 +388,7 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
   return (
     <Box sx={markdownStyles}>
       {frontmatter && (
-        <Table size="small" sx={{ mb: 2, maxWidth: 400, bgcolor: 'grey.50', borderRadius: 1 }}>
+        <Table size="small" sx={{ mb: 2, maxWidth: 400, bgcolor: 'action.hover', borderRadius: 1 }}>
           <TableBody>
             {Object.entries(frontmatter).map(([key, value]) => (
               <TableRow key={key}>
