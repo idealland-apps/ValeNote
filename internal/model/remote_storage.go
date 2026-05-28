@@ -34,3 +34,14 @@ type SyncState struct {
 	RemoteChecksum string     `json:"remote_checksum"`
 	SyncedAt       *time.Time `json:"synced_at"`
 }
+
+type SyncHistory struct {
+	ID            int64     `gorm:"primaryKey" json:"id"`
+	StorageID     int64     `gorm:"index;not null" json:"storage_id"`
+	Status        string    `gorm:"not null" json:"status"`
+	Error         string    `json:"error,omitempty"`
+	FilesUploaded int       `json:"files_uploaded"`
+	FilesDeleted  int       `json:"files_deleted"`
+	StartedAt     time.Time `json:"started_at"`
+	FinishedAt    time.Time `json:"finished_at"`
+}

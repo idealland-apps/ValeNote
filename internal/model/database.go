@@ -33,6 +33,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&UserSetting{},
 		&RemoteStorage{},
 		&SyncState{},
+		&SyncHistory{},
 	); err != nil {
 		return nil, err
 	}

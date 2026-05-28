@@ -141,6 +141,7 @@ func main() {
 			protected.DELETE("/settings/remote-storage/:id", remoteSyncHandler.DeleteStorage)
 			protected.POST("/settings/remote-storage/:id/test", remoteSyncHandler.TestConnection)
 			protected.POST("/settings/remote-storage/:id/sync", remoteSyncHandler.TriggerSync)
+			protected.GET("/settings/remote-storage/:id/history", remoteSyncHandler.GetSyncHistory)
 
 			protected.GET("/settings/system", settingsHandler.GetSettings)
 			protected.PUT("/settings/system", settingsHandler.UpdateSettings)

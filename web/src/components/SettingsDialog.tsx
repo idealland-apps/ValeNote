@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, Tabs, Tab, Box, List, ListItem, ListItemText,
   ListItemSecondaryAction, Select, MenuItem, Slider, Typography, Divider,
-  TextField, Button, Alert, CircularProgress, Switch, Tooltip
+  TextField, Button, Alert, CircularProgress, Switch, Tooltip, Popover
 } from '@mui/material';
 import { Colorize as ColorizeIcon } from '@mui/icons-material';
+import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { useSettingsStore, THEME_COLOR_OPTIONS } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
 import AgentManagement from './AgentManagement';
@@ -62,6 +63,8 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
   const [faviconUploading, setFaviconUploading] = useState(false);
   const [faviconKey, setFaviconKey] = useState(Date.now());
   const faviconInputRef = useRef<HTMLInputElement>(null);
+  const [colorPickerAnchor, setColorPickerAnchor] = useState<HTMLElement | null>(null);
+  const [tempColor, setTempColor] = useState(primaryColor);
 
   const showAutoSaveSuccess = useCallback(() => {
     setSuccess('Saved');
@@ -77,6 +80,20 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     setPrimaryColor(color);
     showAutoSaveSuccess();
   }, [setPrimaryColor, showAutoSaveSuccess]);
+
+  const handleColorPickerOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    setTempColor(primaryColor);
+    setColorPickerAnchor(event.currentTarget);
+  }, [primaryColor]);
+
+  const handleColorPickerClose = useCallback(() => {
+    setColorPickerAnchor(null);
+  }, []);
+
+  const handleColorPickerConfirm = useCallback(() => {
+    handlePrimaryColorChange(tempColor);
+    setColorPickerAnchor(null);
+  }, [tempColor, handlePrimaryColorChange]);
 
   const handleFontSizeChange = useCallback((size: number) => {
     setEditorFontSize(size);
@@ -259,28 +276,72 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
                         <Tooltip title="Custom color">
-                          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <Box
+                            onClick={handleColorPickerOpen}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              cursor: 'pointer',
+                              '&:hover': { opacity: 0.8 },
+                            }}
+                          >
                             <ColorizeIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 0.5 }} />
                             <Box
-                              component="input"
-                              type="color"
-                              value={primaryColor}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handlePrimaryColorChange(e.target.value)}
                               sx={{
                                 width: 24,
                                 height: 24,
-                                padding: 0,
+                                borderRadius: '50%',
+                                bgcolor: primaryColor,
                                 border: '1px solid',
                                 borderColor: 'divider',
-                                borderRadius: '50%',
-                                cursor: 'pointer',
-                                '&::-webkit-color-swatch-wrapper': { padding: 0 },
-                                '&::-webkit-color-swatch': { border: 'none', borderRadius: '50%' },
-                                '&::-moz-color-swatch': { border: 'none', borderRadius: '50%' },
                               }}
                             />
                           </Box>
                         </Tooltip>
+                        <Popover
+                          open={Boolean(colorPickerAnchor)}
+                          anchorEl={colorPickerAnchor}
+                          onClose={handleColorPickerClose}
+                          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                          transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+                        >
+                          <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+                            <HexColorPicker color={tempColor} onChange={setTempColor} />
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>#</Typography>
+                              <HexColorInput
+                                color={tempColor}
+                                onChange={setTempColor}
+                                style={{
+                                  flex: 1,
+                                  padding: '6px 8px',
+                                  border: '1px solid #ccc',
+                                  borderRadius: 4,
+                                  fontSize: 14,
+                                  textTransform: 'uppercase',
+                                }}
+                              />
+                            </Box>
+                            <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={handleColorPickerClose}
+                                sx={{ flex: 1 }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={handleColorPickerConfirm}
+                                sx={{ flex: 1 }}
+                              >
+                                Apply
+                              </Button>
+                            </Box>
+                          </Box>
+                        </Popover>
                       </Box>
                     </ListItemSecondaryAction>
                   </ListItem>

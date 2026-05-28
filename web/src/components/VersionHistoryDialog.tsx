@@ -154,7 +154,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
                         {formatSize(version.size)}
                         {formatModifier(version) && (
                           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', ml: 0.5 }}>
-                            · {formatModifier(version)}
+                            {formatModifier(version)}
                           </Box>
                         )}
                       </Box>
