@@ -49,8 +49,8 @@ export interface Notebook {
   name: string;
   description?: string;
   is_public: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface Note {
@@ -59,13 +59,13 @@ export interface Note {
   content?: string;
   tags?: string[];
   size: number;
-  created_at: string;
-  updated_at: string;
+  created_at: number;
+  updated_at: number;
   etag?: string;
 }
 
 export interface ConflictDetail {
-  modified_at: string;
+  modified_at: number;
   size: number;
   preview: string;
 }
@@ -143,7 +143,7 @@ export interface FileItem {
   name: string;
   type: 'file' | 'folder';
   size?: number;
-  updated_at?: string;
+  updated_at?: number;
 }
 
 export interface PublicTreeItem {
@@ -161,7 +161,7 @@ const publicAxios = axios.create({
 
 export const publicApi = {
   listNotebooks: () => publicAxios.get<Notebook[]>('/public/notebooks'),
-  getSettings: () => publicAxios.get<{ site_name: string; show_powered_by: boolean; public_base_path: string }>('/public/settings'),
+  getSettings: () => publicAxios.get<{ site_name: string; show_powered_by: boolean; public_base_path: string; timezone: string }>('/public/settings'),
   getTree: (notebook: string) => publicAxios.get<PublicTreeItem>(`/public/${encodeURIComponent(notebook)}/tree`),
   getNote: (notebook: string, path: string) => publicAxios.get<Note>(`/public/${encodeURIComponent(notebook)}/note/${encodePath(path)}`),
   getFolderNotes: (notebook: string, path?: string) => {

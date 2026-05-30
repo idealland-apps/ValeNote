@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, List, ListItemText, ListItemButton, IconButton, Typography, Box, CircularProgress, Divider, Button, Chip, Snackbar, Alert } from '@mui/material';
 import { Restore as RestoreIcon, Close as CloseIcon, Person as PersonIcon, Android as AndroidIcon } from '@mui/icons-material';
 import api from '../services/api';
+import { formatTimestamp } from '../utils/time';
 
 function encodePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
@@ -15,7 +16,7 @@ interface Version {
   modifier_type?: string; // "u" for user, "a" for agent
   modifier_id?: number;
   modifier_name?: string;
-  created_at: string;
+  created_at: number;
 }
 
 interface Props {
@@ -83,10 +84,6 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
-
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -148,7 +145,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
                   onClick={() => loadPreview(version)}
                 >
                   <ListItemText
-                    primary={formatDate(version.created_at)}
+                    primary={formatTimestamp(version.created_at)}
                     secondary={
                       <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         {formatSize(version.size)}
@@ -170,7 +167,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
             <>
               <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, flexWrap: 'wrap' }}>
                 <Typography variant="subtitle2">
-                  {formatDate(selectedVersion.created_at)}
+                  {formatTimestamp(selectedVersion.created_at)}
                 </Typography>
                 <Chip label={formatSize(selectedVersion.size)} size="small" />
                 {selectedVersion.modifier_type && selectedVersion.modifier_id && (
@@ -237,7 +234,7 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
         <DialogTitle>Confirm Restore</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to restore to the version from {selectedVersion && formatDate(selectedVersion.created_at)}? Current content will be overwritten.
+            Are you sure you want to restore to the version from {selectedVersion && formatTimestamp(selectedVersion.created_at)}? Current content will be overwritten.
           </Typography>
         </DialogContent>
         <DialogActions>

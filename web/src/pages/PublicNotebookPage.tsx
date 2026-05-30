@@ -8,6 +8,7 @@ import { publicApi, type PublicTreeItem, type Note } from '../services/api';
 import { useSiteStore } from '../stores/siteStore';
 import { PUBLIC_BASE_PATH } from '../constants';
 import MarkdownRenderer from '../components/MarkdownRenderer';
+import { formatDate } from '../utils/time';
 
 const DRAWER_WIDTH = 280;
 
@@ -302,7 +303,7 @@ export default function PublicNotebookPage() {
                     <FileIcon sx={{ mr: 2, color: 'text.secondary' }} />
                     <ListItemText
                       primary={note.title || note.path.split('/').pop()?.replace(/\.md$/, '')}
-                      secondary={new Date(note.updated_at).toLocaleDateString()}
+                      secondary={formatDate(note.updated_at)}
                     />
                   </ListItemButton>
                 ))

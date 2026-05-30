@@ -8,6 +8,7 @@ import MarkdownEditor from './MarkdownEditor';
 import VersionHistoryDialog from './VersionHistoryDialog';
 import AttachmentManagerDialog from './AttachmentManagerDialog';
 import ExportDialog from './ExportDialog';
+import { formatTimestamp } from '../utils/time';
 
 interface Props {
   note: Note;
@@ -31,14 +32,6 @@ interface ConflictDialogProps {
 function ConflictDialog({ open, onClose, detail, onForceOverwrite, onDiscard }: ConflictDialogProps) {
   if (!detail) return null;
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleString();
-    } catch {
-      return dateStr;
-    }
-  };
-
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Edit Conflict</DialogTitle>
@@ -51,7 +44,7 @@ function ConflictDialog({ open, onClose, detail, onForceOverwrite, onDiscard }: 
             Server version info:
           </Typography>
           <Typography variant="body2">
-            Modified at: {formatDate(detail.modified_at)}
+            Modified at: {formatTimestamp(detail.modified_at)}
           </Typography>
           <Typography variant="body2">
             File size: {detail.size} bytes

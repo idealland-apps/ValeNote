@@ -36,30 +36,30 @@ func NewNoteService(db *gorm.DB, cfg *config.Config) *NoteService {
 }
 
 type Note struct {
-	Path      string    `json:"path"`
-	Title     string    `json:"title"`
-	Content   string    `json:"content,omitempty"`
-	Tags      []string  `json:"tags,omitempty"`
-	Size      int64     `json:"size"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	ETag      string    `json:"etag,omitempty"`
+	Path      string `json:"path"`
+	Title     string `json:"title"`
+	Content   string `json:"content,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+	Size      int64  `json:"size"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+	ETag      string `json:"etag,omitempty"`
 }
 
 var ErrConflict = errors.New("conflict")
 
 type ConflictDetail struct {
-	ModifiedAt time.Time `json:"modified_at"`
-	Size       int64     `json:"size"`
-	Preview    string    `json:"preview"`
+	ModifiedAt int64  `json:"modified_at"`
+	Size       int64  `json:"size"`
+	Preview    string `json:"preview"`
 }
 
 type FileItem struct {
-	Path      string    `json:"path"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"` // "file" or "folder"
-	Size      int64     `json:"size,omitempty"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	Path      string `json:"path"`
+	Name      string `json:"name"`
+	Type      string `json:"type"` // "file" or "folder"
+	Size      int64  `json:"size,omitempty"`
+	UpdatedAt int64  `json:"updated_at,omitempty"`
 }
 
 type CreateNoteRequest struct {
@@ -234,7 +234,7 @@ func (s *NoteService) GetNote(path string) (*Note, error) {
 		Content:   string(content),
 		Tags:      tags,
 		Size:      info.Size(),
-		UpdatedAt: info.ModTime(),
+		UpdatedAt: info.ModTime().UnixMilli(),
 		ETag:      etag,
 	}, nil
 }
@@ -300,7 +300,7 @@ func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int
 				preview = preview[:100] + "..."
 			}
 			return nil, &ConflictDetail{
-				ModifiedAt: info.ModTime(),
+				ModifiedAt: info.ModTime().UnixMilli(),
 				Size:       info.Size(),
 				Preview:    preview,
 			}, ErrConflict
@@ -416,7 +416,7 @@ func (s *NoteService) getNoteMetadata(path string, info os.FileInfo) (*Note, err
 		Title:     title,
 		Tags:      tags,
 		Size:      info.Size(),
-		UpdatedAt: info.ModTime(),
+		UpdatedAt: info.ModTime().UnixMilli(),
 	}, nil
 }
 
@@ -444,6 +444,7 @@ func (s *NoteService) indexNote(path string) error {
 	var notebookModel model.Notebook
 	s.db.Where("name = ?", notebook).First(&notebookModel)
 
+	now := time.Now().UnixMilli()
 	metadata := model.NoteMetadata{
 		NotebookID: notebookModel.ID,
 		Path:       path,
@@ -451,8 +452,8 @@ func (s *NoteService) indexNote(path string) error {
 		Checksum:   checksum,
 		Size:       info.Size(),
 		Tags:       string(tagsJSON),
-		FileMtime:  info.ModTime(),
-		IndexedAt:  time.Now(),
+		FileMtime:  info.ModTime().UnixMilli(),
+		IndexedAt:  now,
 	}
 
 	return s.db.Where("path = ?", path).Assign(metadata).FirstOrCreate(&metadata).Error
@@ -466,7 +467,7 @@ func (s *NoteService) SaveVersion(path string, content []byte, userID int64, age
 		return err
 	}
 
-	// Format: 20060102-150405-{checksum}-{type}-{id}.md
+	// Format: {timestamp_ms}-{checksum}-{type}-{id}.md
 	// type: u = user, a = agent
 	var modifierSuffix string
 	if agentID > 0 {
@@ -475,7 +476,7 @@ func (s *NoteService) SaveVersion(path string, content []byte, userID int64, age
 		modifierSuffix = fmt.Sprintf("-u-%d", userID)
 	}
 
-	versionFileName := filepath.Join(versionDir, time.Now().Format("20060102-150405")+"-"+checksum+modifierSuffix+".md")
+	versionFileName := filepath.Join(versionDir, fmt.Sprintf("%d-%s%s.md", time.Now().UnixMilli(), checksum, modifierSuffix))
 	if err := os.WriteFile(versionFileName, content, 0644); err != nil {
 		return err
 	}
@@ -619,7 +620,7 @@ func (s *NoteService) cleanupOldVersions(notePath string) {
 
 	type versionFile struct {
 		name      string
-		createdAt time.Time
+		createdAt int64
 	}
 
 	var versions []versionFile
@@ -635,29 +636,32 @@ func (s *NoteService) cleanupOldVersions(notePath string) {
 	}
 
 	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].createdAt.After(versions[j].createdAt)
+		return versions[i].createdAt > versions[j].createdAt
 	})
 
-	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
+	cutoffTime := time.Now().AddDate(0, 0, -retentionDays).UnixMilli()
 
 	for i, v := range versions {
-		if i >= maxCount || v.createdAt.Before(cutoffTime) {
+		if i >= maxCount || v.createdAt < cutoffTime {
 			os.Remove(filepath.Join(versionDir, v.name))
 		}
 	}
 }
 
-func (s *NoteService) parseVersionFilename(filename string) (time.Time, error) {
+func (s *NoteService) parseVersionFilename(filename string) (int64, error) {
 	base := strings.TrimSuffix(filename, ".md")
 	parts := strings.Split(base, "-")
-	if len(parts) < 3 {
-		return time.Time{}, os.ErrInvalid
+	if len(parts) < 2 {
+		return 0, os.ErrInvalid
 	}
-	dateStr := parts[0] + "-" + parts[1]
-	return time.ParseInLocation("20060102-150405", dateStr, time.Local)
+	return strconv.ParseInt(parts[0], 10, 64)
 }
 
 func (s *NoteService) buildNoteContent(title, content string, tags []string) string {
+	now := time.Now()
+	loc := s.getTimezoneLocation()
+	formattedTime := now.In(loc).Format("2006-01-02 15:04:05")
+
 	var sb strings.Builder
 	sb.WriteString("---\n")
 	if title != "" {
@@ -667,14 +671,24 @@ func (s *NoteService) buildNoteContent(title, content string, tags []string) str
 		tagsJSON, _ := json.Marshal(tags)
 		sb.WriteString("tags: " + string(tagsJSON) + "\n")
 	}
-	sb.WriteString("created: " + time.Now().Format("2006-01-02 15:04:05") + "\n")
-	sb.WriteString("updated: " + time.Now().Format("2006-01-02 15:04:05") + "\n")
+	sb.WriteString(fmt.Sprintf("created: %s\n", formattedTime))
+	sb.WriteString(fmt.Sprintf("updated: %s\n", formattedTime))
 	sb.WriteString("---\n\n")
 	if title != "" {
 		sb.WriteString("# " + title + "\n\n")
 	}
 	sb.WriteString(content)
 	return sb.String()
+}
+
+func (s *NoteService) getTimezoneLocation() *time.Location {
+	var setting model.Setting
+	if err := s.db.Where("key = ?", "timezone").First(&setting).Error; err == nil {
+		if loc, err := time.LoadLocation(setting.Value); err == nil {
+			return loc
+		}
+	}
+	return time.UTC
 }
 
 func parseFrontmatter(content []byte) (title string, tags []string) {
@@ -909,7 +923,7 @@ func (s *NoteService) ListFiles(notebook string, includeFolders bool) ([]FileIte
 					Path:      relPath,
 					Name:      info.Name(),
 					Type:      "folder",
-					UpdatedAt: info.ModTime(),
+					UpdatedAt: info.ModTime().UnixMilli(),
 				})
 			}
 		} else {
@@ -918,7 +932,7 @@ func (s *NoteService) ListFiles(notebook string, includeFolders bool) ([]FileIte
 				Name:      info.Name(),
 				Type:      "file",
 				Size:      info.Size(),
-				UpdatedAt: info.ModTime(),
+				UpdatedAt: info.ModTime().UnixMilli(),
 			})
 		}
 
@@ -990,12 +1004,13 @@ func (s *NoteService) SyncFromFilesystem() error {
 		}
 
 		currentChecksum := sha256sum(content)
+		currentMtime := info.ModTime().UnixMilli()
 
 		var metadata model.NoteMetadata
 		if err := s.db.Where("path = ?", relPath).First(&metadata).Error; err != nil {
 			// Not in database, index it
 			s.indexNote(relPath)
-		} else if metadata.Checksum != currentChecksum || metadata.FileMtime != info.ModTime() {
+		} else if metadata.Checksum != currentChecksum || metadata.FileMtime != currentMtime {
 			// Checksum or mtime changed, re-index
 			s.indexNote(relPath)
 		}

@@ -20,14 +20,14 @@ func NewExportService(cfg *config.Config) *ExportService {
 }
 
 type Manifest struct {
-	Version   string    `json:"version"`
-	ExportedAt time.Time `json:"exported_at"`
-	NotesCount int       `json:"notes_count"`
+	Version    string `json:"version"`
+	ExportedAt int64  `json:"exported_at"`
+	NotesCount int    `json:"notes_count"`
 }
 
 func (s *ExportService) Export() (string, error) {
-	timestamp := time.Now().Format("2006-01-02-150405")
-	filename := "valenote-export-" + timestamp + ".zip"
+	timestamp := time.Now().UnixMilli()
+	filename := "valenote-export-" + time.Now().Format("2006-01-02-150405") + ".zip"
 	tmpPath := filepath.Join(os.TempDir(), filename)
 
 	zipFile, err := os.Create(tmpPath)
@@ -90,7 +90,7 @@ func (s *ExportService) Export() (string, error) {
 
 	manifest := Manifest{
 		Version:    "1.0",
-		ExportedAt: time.Now(),
+		ExportedAt: timestamp,
 		NotesCount: notesCount,
 	}
 	manifestData, _ := json.MarshalIndent(manifest, "", "  ")

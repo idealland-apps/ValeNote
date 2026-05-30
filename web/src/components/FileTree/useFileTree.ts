@@ -6,7 +6,7 @@ export interface FileItem {
   name: string;
   type: 'file' | 'folder';
   size?: number;
-  updated_at?: string;
+  updated_at?: number;
 }
 
 export interface TreeNode {
@@ -16,7 +16,7 @@ export interface TreeNode {
   isNotebook: boolean;
   children: TreeNode[];
   size?: number;
-  updatedAt?: string;
+  updatedAt?: number;
 }
 
 const EXPANDED_KEY = 'valenote_expanded_folders';

@@ -28,6 +28,7 @@ type SystemSettings struct {
 	VersionMaxCount      int    `json:"version_max_count"`
 	SiteName             string `json:"site_name"`
 	ShowPoweredBy        bool   `json:"show_powered_by"`
+	Timezone             string `json:"timezone"`
 }
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
@@ -36,6 +37,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 		VersionMaxCount:      100,
 		SiteName:             "ValeNote",
 		ShowPoweredBy:        true,
+		Timezone:             "UTC",
 	}
 
 	var s1 model.Setting
@@ -58,6 +60,10 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	if err := h.db.Where("key = ?", "show_powered_by").First(&s4).Error; err == nil {
 		settings.ShowPoweredBy = s4.Value == "true"
 	}
+	var s5 model.Setting
+	if err := h.db.Where("key = ?", "timezone").First(&s5).Error; err == nil {
+		settings.Timezone = s5.Value
+	}
 
 	c.JSON(http.StatusOK, settings)
 }
@@ -78,6 +84,9 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 	if req.SiteName == "" {
 		req.SiteName = "ValeNote"
 	}
+	if req.Timezone == "" {
+		req.Timezone = "UTC"
+	}
 
 	h.upsertSetting("version_retention_days", strconv.Itoa(req.VersionRetentionDays))
 	h.upsertSetting("version_max_count", strconv.Itoa(req.VersionMaxCount))
@@ -87,6 +96,7 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 		showPoweredBy = "true"
 	}
 	h.upsertSetting("show_powered_by", showPoweredBy)
+	h.upsertSetting("timezone", req.Timezone)
 
 	c.JSON(http.StatusOK, req)
 }

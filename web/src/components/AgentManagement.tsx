@@ -13,6 +13,7 @@ import {
   Help as HelpIcon
 } from '@mui/icons-material';
 import api from '../services/api';
+import { formatTimestamp } from '../utils/time';
 
 interface Agent {
   id: number;
@@ -20,8 +21,8 @@ interface Agent {
   description: string;
   api_key_prefix: string;
   enabled: boolean;
-  last_used_at?: string;
-  created_at: string;
+  last_used_at?: number;
+  created_at: number;
   permissions: AgentPermission[];
 }
 
@@ -226,7 +227,7 @@ export default function AgentManagement({ notebooks }: Props) {
                     </Typography>
                     {agent.last_used_at && (
                       <Typography variant="caption" color="text.secondary">
-                        Last used: {new Date(agent.last_used_at).toLocaleString()}
+                        Last used: {formatTimestamp(agent.last_used_at)}
                       </Typography>
                     )}
                   </>

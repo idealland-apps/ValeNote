@@ -429,6 +429,7 @@ type PublicSettings struct {
 	SiteName       string `json:"site_name"`
 	ShowPoweredBy  bool   `json:"show_powered_by"`
 	PublicBasePath string `json:"public_base_path"`
+	Timezone       string `json:"timezone"`
 }
 
 func (s *PublicService) GetPublicSettings() PublicSettings {
@@ -436,6 +437,7 @@ func (s *PublicService) GetPublicSettings() PublicSettings {
 		SiteName:       "ValeNote",
 		ShowPoweredBy:  true,
 		PublicBasePath: "/public",
+		Timezone:       "UTC",
 	}
 
 	var siteName model.Setting
@@ -451,6 +453,11 @@ func (s *PublicService) GetPublicSettings() PublicSettings {
 	var publicBasePath model.Setting
 	if err := s.db.Where("key = ?", "public_base_path").First(&publicBasePath).Error; err == nil {
 		settings.PublicBasePath = publicBasePath.Value
+	}
+
+	var timezone model.Setting
+	if err := s.db.Where("key = ?", "timezone").First(&timezone).Error; err == nil {
+		settings.Timezone = timezone.Value
 	}
 
 	return settings

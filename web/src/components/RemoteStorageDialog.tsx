@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select, MenuItem, FormControl, InputLabel, Box, Alert, List, ListItem, ListItemText, ListItemSecondaryAction, IconButton, Switch, FormControlLabel, CircularProgress, Typography, Chip, Tooltip } from '@mui/material';
 import { Delete as DeleteIcon, Sync as SyncIcon, Check as CheckIcon, Error as ErrorIcon, Edit as EditIcon, NetworkCheck as TestIcon, History as HistoryIcon } from '@mui/icons-material';
 import api from '../services/api';
+import { formatTimestamp } from '../utils/time';
 
 interface RemoteStorage {
   id: number;
@@ -20,7 +21,7 @@ interface RemoteStorage {
   webdav_path?: string;
   sync_interval_minutes: number;
   delete_remote: boolean;
-  last_sync_at?: string;
+  last_sync_at?: number;
   last_sync_status?: string;
   last_sync_error?: string;
 }
@@ -32,8 +33,8 @@ interface SyncHistory {
   error?: string;
   files_uploaded: number;
   files_deleted: number;
-  started_at: string;
-  finished_at: string;
+  started_at: number;
+  finished_at: number;
 }
 
 interface Props {
@@ -181,7 +182,7 @@ export default function RemoteStorageDialog({ open, onClose }: Props) {
                     }
                     secondary={
                       storage.last_sync_at
-                        ? `Last synced: ${new Date(storage.last_sync_at).toLocaleString()}`
+                        ? `Last synced: ${formatTimestamp(storage.last_sync_at)}`
                         : 'Never synced'
                     }
                   />
@@ -406,7 +407,7 @@ export default function RemoteStorageDialog({ open, onClose }: Props) {
                       <ErrorIcon color="error" fontSize="small" />
                     )}
                     <Typography variant="body2">
-                      {new Date(h.started_at).toLocaleString()}
+                      {formatTimestamp(h.started_at)}
                     </Typography>
                     <Chip
                       label={h.status}

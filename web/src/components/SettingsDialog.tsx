@@ -12,6 +12,7 @@ import AgentManagement from './AgentManagement';
 import UserManagement from './UserManagement';
 import RemoteStorageDialog from './RemoteStorageDialog';
 import { useSiteStore } from '../stores/siteStore';
+import { setTimezone } from '../utils/time';
 import api, { settingsApi } from '../services/api';
 
 interface Props {
@@ -39,6 +40,7 @@ interface SystemSettings {
   version_max_count: number;
   site_name: string;
   show_powered_by: boolean;
+  timezone: string;
 }
 
 export default function SettingsDialog({ open, onClose, notebooks }: Props) {
@@ -52,6 +54,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     version_max_count: 100,
     site_name: 'ValeNote',
     show_powered_by: true,
+    timezone: 'UTC',
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -130,6 +133,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
         version_max_count: sysRes.data.version_max_count ?? 100,
         site_name: sysRes.data.site_name || 'ValeNote',
         show_powered_by: sysRes.data.show_powered_by ?? true,
+        timezone: sysRes.data.timezone || 'UTC',
       });
     } catch {
       setError('Failed to load settings');
@@ -158,9 +162,11 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     setError('');
     try {
       await api.put('/settings/system', systemSettings);
+      setTimezone(systemSettings.timezone);
       useSiteStore.setState({
         siteName: systemSettings.site_name,
         showPoweredBy: systemSettings.show_powered_by,
+        timezone: systemSettings.timezone,
         loaded: true,
       });
       setSuccess('Settings saved');
@@ -411,6 +417,38 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                       onClick={handleSaveSystemSettings}
                       disabled={saving}
                       sx={{ mt: 1 }}
+                    >
+                      Save
+                    </Button>
+                  </Box>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Timezone
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Set the timezone for displaying dates and times throughout the application.
+                  </Typography>
+
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 3 }}>
+                    <Select
+                      value={systemSettings.timezone}
+                      onChange={(e) => setSystemSettings({
+                        ...systemSettings,
+                        timezone: e.target.value,
+                      })}
+                      size="small"
+                      sx={{ minWidth: 300 }}
+                    >
+                      {Intl.supportedValuesOf('timeZone').map((tz) => (
+                        <MenuItem key={tz} value={tz}>{tz}</MenuItem>
+                      ))}
+                    </Select>
+                    <Button
+                      variant="contained"
+                      onClick={handleSaveSystemSettings}
+                      disabled={saving}
                     >
                       Save
                     </Button>

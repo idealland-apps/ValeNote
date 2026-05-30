@@ -28,7 +28,6 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&Agent{},
 		&AgentNotebookPermission{},
 		&NoteMetadata{},
-		&NoteLock{},
 		&Setting{},
 		&UserSetting{},
 		&RemoteStorage{},
@@ -55,6 +54,7 @@ func initDefaultSettings(db *gorm.DB) {
 		"version_retention_days":  "30",
 		"version_max_count":       "100",
 		"show_powered_by":         "true",
+		"timezone":                "UTC",
 	}
 
 	for key, value := range defaults {

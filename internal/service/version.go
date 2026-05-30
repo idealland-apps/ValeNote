@@ -23,14 +23,14 @@ func NewVersionService(db *gorm.DB, cfg *config.Config) *VersionService {
 }
 
 type Version struct {
-	ID           string    `json:"id"`
-	NotePath     string    `json:"note_path"`
-	Size         int64     `json:"size"`
-	Checksum     string    `json:"checksum"`
-	ModifierType string    `json:"modifier_type,omitempty"` // "u" for user, "a" for agent, empty for legacy
-	ModifierID   int64     `json:"modifier_id,omitempty"`
-	ModifierName string    `json:"modifier_name,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID           string `json:"id"`
+	NotePath     string `json:"note_path"`
+	Size         int64  `json:"size"`
+	Checksum     string `json:"checksum"`
+	ModifierType string `json:"modifier_type,omitempty"` // "u" for user, "a" for agent, empty for legacy
+	ModifierID   int64  `json:"modifier_id,omitempty"`
+	ModifierName string `json:"modifier_name,omitempty"`
+	CreatedAt    int64  `json:"created_at"`
 }
 
 func (s *VersionService) getVersionDir(notePath string) string {
@@ -40,27 +40,26 @@ func (s *VersionService) getVersionDir(notePath string) string {
 	return filepath.Join(s.cfg.Notes.VersionsPath, dir, base)
 }
 
-func (s *VersionService) parseVersionFile(filename string) (time.Time, string, string, int64, error) {
+func (s *VersionService) parseVersionFile(filename string) (int64, string, string, int64, error) {
 	base := strings.TrimSuffix(filename, ".md")
 	parts := strings.Split(base, "-")
-	if len(parts) < 3 {
-		return time.Time{}, "", "", 0, os.ErrInvalid
+	if len(parts) < 2 {
+		return 0, "", "", 0, os.ErrInvalid
 	}
 
-	dateStr := parts[0] + "-" + parts[1]
-	createdAt, err := time.ParseInLocation("20060102-150405", dateStr, time.Local)
+	createdAt, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
-		return time.Time{}, "", "", 0, err
+		return 0, "", "", 0, err
 	}
 
-	checksum := parts[2]
+	checksum := parts[1]
 
-	// New format: 20060102-150405-{checksum}-{type}-{id}.md
+	// New format: {timestamp_ms}-{checksum}-{type}-{id}.md
 	var modifierType string
 	var modifierID int64
-	if len(parts) == 5 {
-		modifierType = parts[3]
-		modifierID, _ = strconv.ParseInt(parts[4], 10, 64)
+	if len(parts) == 4 {
+		modifierType = parts[2]
+		modifierID, _ = strconv.ParseInt(parts[3], 10, 64)
 	}
 
 	return createdAt, checksum, modifierType, modifierID, nil
@@ -127,7 +126,7 @@ func (s *VersionService) ListVersions(notePath string, limit int) ([]Version, er
 	}
 
 	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].CreatedAt.After(versions[j].CreatedAt)
+		return versions[i].CreatedAt > versions[j].CreatedAt
 	})
 
 	if len(versions) > limit {
@@ -215,7 +214,7 @@ func (s *VersionService) CleanupOldVersions(notePath string) error {
 
 	type versionFile struct {
 		name      string
-		createdAt time.Time
+		createdAt int64
 	}
 
 	var versions []versionFile
@@ -231,13 +230,13 @@ func (s *VersionService) CleanupOldVersions(notePath string) error {
 	}
 
 	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].createdAt.After(versions[j].createdAt)
+		return versions[i].createdAt > versions[j].createdAt
 	})
 
-	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
+	cutoffTime := time.Now().AddDate(0, 0, -retentionDays).UnixMilli()
 
 	for i, v := range versions {
-		if i >= maxCount || v.createdAt.Before(cutoffTime) {
+		if i >= maxCount || v.createdAt < cutoffTime {
 			os.Remove(filepath.Join(versionDir, v.name))
 		}
 	}

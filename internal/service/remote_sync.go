@@ -84,7 +84,7 @@ func (s *RemoteSyncService) runScheduledSyncs() {
 		return
 	}
 
-	now := time.Now()
+	now := time.Now().UnixMilli()
 	for _, storage := range storages {
 		if storage.SyncIntervalMinutes <= 0 {
 			continue
@@ -94,8 +94,8 @@ func (s *RemoteSyncService) runScheduledSyncs() {
 		if storage.LastSyncAt == nil {
 			shouldSync = true
 		} else {
-			nextSyncTime := storage.LastSyncAt.Add(time.Duration(storage.SyncIntervalMinutes) * time.Minute)
-			if now.After(nextSyncTime) {
+			nextSyncTime := *storage.LastSyncAt + int64(storage.SyncIntervalMinutes)*60*1000
+			if now > nextSyncTime {
 				shouldSync = true
 			}
 		}
@@ -196,9 +196,10 @@ func (s *RemoteSyncService) Sync(id int64) error {
 		return err
 	}
 
+	now := time.Now().UnixMilli()
 	history := &model.SyncHistory{
 		StorageID: id,
-		StartedAt: time.Now(),
+		StartedAt: now,
 	}
 
 	adapter, err := s.createAdapter(storage)
@@ -278,7 +279,7 @@ func (s *RemoteSyncService) saveSyncHistory(history *model.SyncHistory, status, 
 	history.Error = errorMsg
 	history.FilesUploaded = uploaded
 	history.FilesDeleted = deleted
-	history.FinishedAt = time.Now()
+	history.FinishedAt = time.Now().UnixMilli()
 	s.db.Create(history)
 }
 
@@ -358,7 +359,7 @@ func (s *RemoteSyncService) diff(localFiles []localFile, syncStates map[string]m
 }
 
 func (s *RemoteSyncService) updateSyncState(storageID int64, path, checksum string) {
-	now := time.Now()
+	now := time.Now().UnixMilli()
 	state := model.SyncState{
 		StorageID:      storageID,
 		FilePath:       path,
@@ -378,7 +379,7 @@ func (s *RemoteSyncService) deleteSyncState(storageID int64, path string) {
 }
 
 func (s *RemoteSyncService) updateSyncStatus(storage *model.RemoteStorage, status, errorMsg string) {
-	now := time.Now()
+	now := time.Now().UnixMilli()
 	storage.LastSyncAt = &now
 	storage.LastSyncStatus = status
 	storage.LastSyncError = errorMsg
