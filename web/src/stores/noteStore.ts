@@ -20,6 +20,7 @@ interface NoteState {
   isLoading: boolean;
   isNoteLoading: boolean;
   dirtyChecker: (() => boolean) | null;
+  loadNoteAbortController: AbortController | null;
   loadNotebooks: () => Promise<void>;
   loadNotes: (notebook?: string) => Promise<void>;
   loadFiles: (notebook?: string) => Promise<void>;
@@ -47,6 +48,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   isLoading: false,
   isNoteLoading: false,
   dirtyChecker: null,
+  loadNoteAbortController: null,
 
   loadNotebooks: async () => {
     const { data } = await notebookApi.list();
@@ -74,12 +76,23 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
 
   loadNote: async (path: string) => {
-    set({ isNoteLoading: true });
+    const prevController = get().loadNoteAbortController;
+    if (prevController) {
+      prevController.abort();
+    }
+
+    const controller = new AbortController();
+    set({ isNoteLoading: true, loadNoteAbortController: controller });
+
     try {
-      const { data } = await noteApi.get(path);
-      set({ currentNote: data });
-    } finally {
-      set({ isNoteLoading: false });
+      const { data } = await noteApi.get(path, { signal: controller.signal });
+      set({ currentNote: data, isNoteLoading: false, loadNoteAbortController: null });
+    } catch (error) {
+      if (axios.isCancel(error)) {
+        return;
+      }
+      set({ isNoteLoading: false, loadNoteAbortController: null });
+      throw error;
     }
   },
 

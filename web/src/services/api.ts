@@ -114,7 +114,8 @@ export interface SearchResult {
 export const noteApi = {
   list: (notebook?: string, recursive = true) =>
     api.get<Note[]>('/notes', { params: { notebook, recursive } }),
-  get: (path: string) => api.get<Note>(`/notes/${encodePath(path)}`),
+  get: (path: string, config?: { signal?: AbortSignal }) =>
+    api.get<Note>(`/notes/${encodePath(path)}`, config),
   create: (data: { path: string; title?: string; content: string; tags?: string[] }) =>
     api.post<Note>('/notes', data),
   update: (path: string, data: { content: string; append?: boolean; etag?: string }) =>
