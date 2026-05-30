@@ -82,7 +82,7 @@ export default function NoteEditor({ note }: Props) {
   const [exportOpen, setExportOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [conflictDialog, setConflictDialog] = useState<{ open: boolean; detail: ConflictDetail | null }>({ open: false, detail: null });
-  const { updateNote, forceUpdateNote, setCurrentNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
+  const { updateNote, forceUpdateNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   const isDirty = content !== (note.content || '');
