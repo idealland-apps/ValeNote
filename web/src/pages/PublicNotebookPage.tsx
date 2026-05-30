@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Box, Drawer, AppBar, Toolbar, Typography, CircularProgress, List, ListItem, ListItemButton, ListItemText, Alert, Paper, Breadcrumbs, Link } from '@mui/material';
 import { Description as FileIcon, Folder as FolderIcon } from '@mui/icons-material';
@@ -8,6 +8,7 @@ import { publicApi, type PublicTreeItem, type Note } from '../services/api';
 import { useSiteStore } from '../stores/siteStore';
 import { PUBLIC_BASE_PATH } from '../constants';
 import MarkdownRenderer from '../components/MarkdownRenderer';
+import TableOfContents from '../components/TableOfContents';
 import { formatDate } from '../utils/time';
 
 const DRAWER_WIDTH = 280;
@@ -49,9 +50,11 @@ function renderTreeItem(node: PublicTreeItem): React.ReactNode {
       key={node.path}
       itemId={node.path}
       label={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflow: 'hidden' }}>
           {node.type === 'folder' ? <FolderIcon fontSize="small" color="primary" /> : <FileIcon fontSize="small" />}
-          <span>{displayName}</span>
+          <Typography variant="body2" noWrap sx={{ flexGrow: 1, fontSize: '0.8rem' }}>
+            {displayName}
+          </Typography>
         </Box>
       }
     >
@@ -65,6 +68,7 @@ export default function PublicNotebookPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { siteName, showPoweredBy } = useSiteStore();
+  const contentContainerRef = useRef<HTMLDivElement>(null);
 
   const [tree, setTree] = useState<PublicTreeItem | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
@@ -188,11 +192,12 @@ export default function PublicNotebookPage() {
     .map((part, index, arr) => {
       const path = `${PUBLIC_BASE_PATH}/${arr.slice(0, index + 1).join('/')}`;
       const isLast = index === arr.length - 1;
+      const decodedPart = decodeURIComponent(part);
       return isLast ? (
-        <Typography key={path} color="text.primary">{part}</Typography>
+        <Typography key={path} color="text.primary" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={decodedPart}>{decodedPart}</Typography>
       ) : (
-        <Link key={path} underline="hover" color="inherit" href={path} onClick={(e) => { e.preventDefault(); navigate(path); }}>
-          {part}
+        <Link key={path} underline="hover" color="inherit" href={path} onClick={(e) => { e.preventDefault(); navigate(path); }} sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', verticalAlign: 'bottom' }} title={decodedPart}>
+          {decodedPart}
         </Link>
       );
     });
@@ -275,19 +280,22 @@ export default function PublicNotebookPage() {
       >
         <Toolbar />
 
-        <Breadcrumbs sx={{ mb: 2 }}>
+        <Breadcrumbs sx={{ mb: 2, flexWrap: 'nowrap', overflow: 'hidden', '& ol': { flexWrap: 'nowrap' } }}>
           {breadcrumbs}
         </Breadcrumbs>
 
         {content?.type === 'note' && !Array.isArray(content.data) && (
-          <Paper sx={{ p: 3 }}>
-            <MarkdownRenderer
-              content={content.data.content || ''}
-              notePath={content.data.path}
-              isPublic={true}
-              notebook={notebook}
-            />
-          </Paper>
+          <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 140px)' }}>
+            <Paper ref={contentContainerRef} sx={{ p: 3, flexGrow: 1, overflow: 'auto' }}>
+              <MarkdownRenderer
+                content={content.data.content || ''}
+                notePath={content.data.path}
+                isPublic={true}
+                notebook={notebook}
+              />
+            </Paper>
+            <TableOfContents containerRef={contentContainerRef} />
+          </Box>
         )}
 
         {content?.type === 'folder' && Array.isArray(content.data) && (

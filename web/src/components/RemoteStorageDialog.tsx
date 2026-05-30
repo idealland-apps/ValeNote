@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select, MenuItem, FormControl, InputLabel, Box, Alert, List, ListItem, ListItemText, ListItemSecondaryAction, IconButton, Switch, FormControlLabel, CircularProgress, Typography, Chip, Tooltip } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText, Button, TextField, Select, MenuItem, FormControl, InputLabel, Box, Alert, List, ListItem, ListItemText, ListItemSecondaryAction, IconButton, Switch, FormControlLabel, CircularProgress, Typography, Chip, Tooltip } from '@mui/material';
 import { Delete as DeleteIcon, Sync as SyncIcon, Check as CheckIcon, Error as ErrorIcon, Edit as EditIcon, NetworkCheck as TestIcon, History as HistoryIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { formatTimestamp } from '../utils/time';
@@ -59,6 +59,10 @@ export default function RemoteStorageDialog({ open, onClose }: Props) {
     storageName: '',
     history: [],
   });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; storage: RemoteStorage | null }>({
+    open: false,
+    storage: null,
+  });
 
   const showMessage = (message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
@@ -107,9 +111,9 @@ export default function RemoteStorageDialog({ open, onClose }: Props) {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure?')) return;
     try {
       await api.delete(`/settings/remote-storage/${id}`);
+      setDeleteConfirm({ open: false, storage: null });
       loadStorages();
     } catch {
       setError('Failed to delete storage');
@@ -208,7 +212,7 @@ export default function RemoteStorageDialog({ open, onClose }: Props) {
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Delete">
-                      <IconButton onClick={() => handleDelete(storage.id)} color="error">
+                      <IconButton onClick={() => setDeleteConfirm({ open: true, storage })} color="error">
                         <DeleteIcon />
                       </IconButton>
                     </Tooltip>
@@ -430,6 +434,29 @@ export default function RemoteStorageDialog({ open, onClose }: Props) {
             Showing up to 20 recent records
           </Typography>
           <Button onClick={() => setHistoryDialog({ ...historyDialog, open: false })}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, storage: null })}>
+        <DialogTitle>Remove Backup Strategy</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to remove the backup strategy "{deleteConfirm.storage?.name}"?
+          </DialogContentText>
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Removing this strategy will NOT delete the files that have already been backed up to the remote storage. You can safely remove this strategy without losing your existing backups.
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm({ open: false, storage: null })}>Cancel</Button>
+          <Button
+            onClick={() => deleteConfirm.storage && handleDelete(deleteConfirm.storage.id)}
+            color="error"
+            variant="contained"
+          >
+            Remove
+          </Button>
         </DialogActions>
       </Dialog>
     </>

@@ -275,6 +275,8 @@ function PublicLink({ href, children }: { href?: string; children?: React.ReactN
   );
 }
 
+let headingCounter = 0;
+
 export default function MarkdownRenderer({ content, onTagClick, notePath, isPublic, notebook }: Props) {
   const { frontmatter, body } = useMemo(() => parseFrontmatter(content), [content]);
   const theme = useTheme();
@@ -330,9 +332,18 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
     };
   }, [resolveUrl, isPublic, notebook]);
 
+  headingCounter = 0;
+
   const components = useMemo(() => {
-    const codeComponent = {
-      code: ({ children, className, ...props }: { children?: React.ReactNode; className?: string; node?: unknown }) => {
+    const createHeading = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') => {
+      return ({ children }: { children?: React.ReactNode }) => {
+        const index = headingCounter++;
+        return <Tag data-heading-index={index}>{children}</Tag>;
+      };
+    };
+
+    return {
+      code: ({ children, className, ...props }: { children?: React.ReactNode; className?: string }) => {
         const match = /language-(\w+)/.exec(className || '');
         const isInline = !match && !String(children).includes('\n');
         if (isInline) {
@@ -341,29 +352,22 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
         return <CodeBlock language={match?.[1]} isDark={isDark}>{children}</CodeBlock>;
       },
       pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-    };
-
-    if (isPublic) {
-      return {
-        ...codeComponent,
-        a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
-          const resolvedHref = href ? transformUrl(href) : undefined;
-          return <PublicLink href={resolvedHref}>{children}</PublicLink>;
-        },
-      };
-    }
-    return {
-      ...codeComponent,
+      h1: createHeading('h1'),
+      h2: createHeading('h2'),
+      h3: createHeading('h3'),
+      h4: createHeading('h4'),
+      h5: createHeading('h5'),
+      h6: createHeading('h6'),
       img: ({ src, alt }: { src?: string; alt?: string }) => {
         const resolvedSrc = src ? transformUrl(src) : undefined;
-        return <AuthenticatedImage src={resolvedSrc} alt={alt} />;
+        return isPublic ? <img src={resolvedSrc} alt={alt} /> : <AuthenticatedImage src={resolvedSrc} alt={alt} />;
       },
       a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
         const resolvedHref = href ? transformUrl(href) : undefined;
-        return <AuthenticatedLink href={resolvedHref}>{children}</AuthenticatedLink>;
+        return isPublic ? <PublicLink href={resolvedHref}>{children}</PublicLink> : <AuthenticatedLink href={resolvedHref}>{children}</AuthenticatedLink>;
       },
     };
-  }, [isPublic, transformUrl, isDark]);
+  }, [isDark, isPublic, transformUrl]);
 
   const renderValue = (key: string, value: string | string[] | undefined) => {
     if (key === 'tags' && Array.isArray(value)) {

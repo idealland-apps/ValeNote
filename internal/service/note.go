@@ -348,6 +348,7 @@ func (s *NoteService) DeleteNote(path string) error {
 	s.db.Where("path = ?", cleanPath).Delete(&model.NoteMetadata{})
 
 	s.deleteAttachmentDir(cleanPath)
+	s.deleteVersionDir(cleanPath)
 
 	InvalidateSearchCache()
 
@@ -594,6 +595,16 @@ func (s *NoteService) deleteAttachmentDirRecursive(folderPath string) {
 	})
 }
 
+func (s *NoteService) deleteVersionDir(notePath string) {
+	versionDir := s.getVersionDir(notePath)
+	os.RemoveAll(versionDir)
+}
+
+func (s *NoteService) deleteVersionDirRecursive(folderPath string) {
+	versionBase := filepath.Join(s.cfg.Notes.VersionsPath, folderPath)
+	os.RemoveAll(versionBase)
+}
+
 func (s *NoteService) cleanupOldVersions(notePath string) {
 	retentionDays := 30
 	maxCount := 100
@@ -765,6 +776,7 @@ func (s *NoteService) DeleteFolder(path string) error {
 	}
 
 	s.deleteAttachmentDirRecursive(cleanPath)
+	s.deleteVersionDirRecursive(cleanPath)
 
 	if err := os.RemoveAll(fullPath); err != nil {
 		return err

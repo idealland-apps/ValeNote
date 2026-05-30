@@ -8,6 +8,7 @@ import MarkdownEditor from './MarkdownEditor';
 import VersionHistoryDialog from './VersionHistoryDialog';
 import AttachmentManagerDialog from './AttachmentManagerDialog';
 import ExportDialog from './ExportDialog';
+import TableOfContents from './TableOfContents';
 import { formatTimestamp } from '../utils/time';
 
 interface Props {
@@ -82,6 +83,7 @@ export default function NoteEditor({ note }: Props) {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [conflictDialog, setConflictDialog] = useState<{ open: boolean; detail: ConflictDetail | null }>({ open: false, detail: null });
   const { updateNote, forceUpdateNote, deleteNote, setCurrentNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
+  const previewContainerRef = useRef<HTMLDivElement>(null);
 
   const isDirty = content !== (note.content || '');
 
@@ -214,8 +216,11 @@ export default function NoteEditor({ note }: Props) {
             notePath={note.path}
           />
         ) : (
-          <Box sx={{ height: '100%', overflow: 'auto', p: 2 }}>
-            <MarkdownRenderer content={content} notePath={note.path} />
+          <Box sx={{ height: '100%', display: 'flex' }}>
+            <Box ref={previewContainerRef} sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+              <MarkdownRenderer content={content} notePath={note.path} />
+            </Box>
+            <TableOfContents containerRef={previewContainerRef} />
           </Box>
         )}
       </Box>

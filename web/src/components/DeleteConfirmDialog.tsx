@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Box } from '@mui/material';
 
 interface DeleteConfirmDialogProps {
   open: boolean;
@@ -12,13 +12,18 @@ export default function DeleteConfirmDialog({ open, onClose, onConfirm, name, ty
   const isFolder = type === 'folder';
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Delete {isFolder ? 'Folder' : 'File'}</DialogTitle>
       <DialogContent>
-        <DialogContentText>
+        <DialogContentText component="div">
           Are you sure you want to delete "{name}"?
           {isFolder && ' This will delete all files and subfolders inside it.'}
-          {' '}This action cannot be undone.
+          <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+            <li>This action cannot be undone.</li>
+            <li>All images and attachments in the note will be deleted.</li>
+            <li>All corresponding version history files will be deleted.</li>
+            <li>If remote backup deletion is enabled, all corresponding notes and attachments in remote storage will be deleted on the next sync.</li>
+          </Box>
         </DialogContentText>
       </DialogContent>
       <DialogActions>

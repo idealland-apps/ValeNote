@@ -100,10 +100,15 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
 
   const isCurrentNote = node.type === 'file' && highlightPath === node.id;
 
+  const handleItemContextMenu = useCallback((e: React.MouseEvent) => {
+    onContextMenu(e, node);
+  }, [onContextMenu, node]);
+
   return (
     <TreeItem
       ref={ref}
       itemId={node.id}
+      onContextMenu={handleItemContextMenu}
       sx={{
         '& > .MuiTreeItem-content': {
           py: 0,
@@ -128,7 +133,6 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
             borderRadius: 1,
           }}
           onClick={() => onSelect(node.id, node.type)}
-          onContextMenu={(e) => onContextMenu(e, node)}
         >
           {icon}
           <Typography variant="body2" noWrap sx={{ flexGrow: 1, fontSize: '0.8rem' }}>
@@ -215,8 +219,9 @@ export default function FileTree({
   }, []);
 
   const handleContainerContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (e.target === containerRef.current || (e.target as HTMLElement).closest('[data-empty-area]')) {
-      e.preventDefault();
       setContextMenu({ x: e.clientX, y: e.clientY, node: null });
     }
   }, []);
@@ -284,6 +289,7 @@ export default function FileTree({
           transitionDuration={0}
           slotProps={{
             paper: {
+              onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
               sx: {
                 '& .MuiMenuItem-root': {
                   py: 0.25,
@@ -302,6 +308,12 @@ export default function FileTree({
                 '& .MuiSvgIcon-root': {
                   fontSize: '1rem',
                 },
+              },
+            },
+            backdrop: {
+              onContextMenu: (e: React.MouseEvent) => {
+                e.preventDefault();
+                closeMenu();
               },
             },
           }}
@@ -333,15 +345,17 @@ export default function FileTree({
                 <ListItemIcon><NewFileIcon fontSize="small" /></ListItemIcon>
                 <ListItemText>New File</ListItemText>
               </MenuItem>
-              <Divider />
             </>
           )}
 
           {menuNode && !isNotebook && (
-            <MenuItem onClick={() => { onCopy(menuNode.id); closeMenu(); }}>
-              <ListItemIcon><CopyIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Copy</ListItemText>
-            </MenuItem>
+            <>
+              <Divider />
+              <MenuItem onClick={() => { onCopy(menuNode.id); closeMenu(); }}>
+                <ListItemIcon><CopyIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Copy</ListItemText>
+              </MenuItem>
+            </>
           )}
 
           {isFolder && !isRootContext && clipboardPath && (
