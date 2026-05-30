@@ -116,7 +116,7 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
         },
         '& > .MuiTreeItem-content[data-selected]': isCurrentNote ? {
           bgcolor: (theme) => `${theme.palette.primary.main}20`,
-          borderRadius: 1,
+          borderRadius: 0.5,
         } : {
           bgcolor: 'transparent',
         },
@@ -258,6 +258,7 @@ export default function FileTree({
             expandedItems={expandedIds}
             onExpandedItemsChange={handleExpandedChange}
             sx={{
+              p: 1,
               '& .MuiTreeItem-content[data-selected]': {
                 bgcolor: 'transparent',
               },

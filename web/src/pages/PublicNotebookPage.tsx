@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Box, Drawer, AppBar, Toolbar, Typography, CircularProgress, List, ListItem, ListItemButton, ListItemText, Alert, Paper, Breadcrumbs, Link } from '@mui/material';
-import { Description as FileIcon, Folder as FolderIcon } from '@mui/icons-material';
+import { Box, Drawer, AppBar, Toolbar, Typography, CircularProgress, List, ListItem, ListItemButton, ListItemText, Alert, Paper, Breadcrumbs, Link, IconButton, useMediaQuery, useTheme } from '@mui/material';
+import { Description as FileIcon, Folder as FolderIcon, Menu as MenuIcon } from '@mui/icons-material';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { publicApi, type PublicTreeItem, type Note } from '../services/api';
@@ -69,13 +69,20 @@ export default function PublicNotebookPage() {
   const location = useLocation();
   const { siteName, showPoweredBy } = useSiteStore();
   const contentContainerRef = useRef<HTMLDivElement>(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
+  const [drawerOpen, setDrawerOpen] = useState(!isMobile);
   const [tree, setTree] = useState<PublicTreeItem | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
   const [content, setContent] = useState<{ type: 'note' | 'folder'; data: Note | Note[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
+  useEffect(() => {
+    setDrawerOpen(!isMobile);
+  }, [isMobile]);
 
   useEffect(() => {
     if (!notebook) return;
@@ -222,6 +229,9 @@ export default function PublicNotebookPage() {
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
+          <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(!drawerOpen)} sx={{ mr: 1 }}>
+            <MenuIcon />
+          </IconButton>
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
             {notebook}
           </Typography>
@@ -232,10 +242,13 @@ export default function PublicNotebookPage() {
       </AppBar>
 
       <Drawer
-        variant="permanent"
+        variant="persistent"
+        anchor="left"
+        open={drawerOpen}
         sx={{
-          width: DRAWER_WIDTH,
+          width: drawerOpen ? DRAWER_WIDTH : 0,
           flexShrink: 0,
+          transition: 'width 0.2s',
           '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' },
         }}
       >
@@ -294,7 +307,7 @@ export default function PublicNotebookPage() {
                 notebook={notebook}
               />
             </Paper>
-            <TableOfContents containerRef={contentContainerRef} />
+            <TableOfContents containerRef={contentContainerRef} isPublic />
           </Box>
         )}
 

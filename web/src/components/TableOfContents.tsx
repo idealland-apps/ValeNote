@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Box, IconButton, List, ListItemButton, ListItemText, Paper, Tooltip, Collapse } from '@mui/material';
-import { ChevronRight, ChevronLeft } from '@mui/icons-material';
+import { Box, IconButton, List, ListItemButton, ListItemText, Paper, Tooltip, Collapse, useMediaQuery, useTheme, Drawer } from '@mui/material';
+import { ChevronRight, ChevronLeft, Toc as TocIcon } from '@mui/icons-material';
 
 interface TocItem {
   index: number;
@@ -11,14 +11,24 @@ interface TocItem {
 
 interface Props {
   containerRef: React.RefObject<HTMLElement | null>;
+  isPublic?: boolean;
 }
 
 const TOC_WIDTH = 220;
 
-export default function TableOfContents({ containerRef }: Props) {
-  const [expanded, setExpanded] = useState(true);
+export default function TableOfContents({ containerRef, isPublic = false }: Props) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [headings, setHeadings] = useState<TocItem[]>([]);
+  const [desktopExpanded, setDesktopExpanded] = useState(true);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setDrawerOpen(false);
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -84,10 +94,95 @@ export default function TableOfContents({ containerRef }: Props) {
 
   const handleClick = (heading: TocItem) => {
     heading.element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (isMobile) {
+      setDrawerOpen(false);
+    }
   };
 
   if (headings.length === 0) {
     return null;
+  }
+
+  const tocList = (
+    <List dense sx={{ py: 0.25, pt: 1 }}>
+      {headings.map((heading) => {
+        const isActive = activeIndex === heading.index;
+        return (
+          <ListItemButton
+            key={heading.index}
+            onClick={() => handleClick(heading)}
+            sx={{
+              pl: 1.5 + (heading.level - minLevel) * 1.5,
+              py: 0.25,
+              minHeight: 26,
+              position: 'relative',
+              '&::before': isActive ? {
+                content: '""',
+                position: 'absolute',
+                left: 0,
+                top: 4,
+                bottom: 4,
+                width: 3,
+                bgcolor: 'primary.main',
+              } : {},
+              '&:hover': {
+                bgcolor: 'action.hover',
+              },
+            }}
+          >
+            <ListItemText
+              primary={heading.text}
+              slotProps={{
+                primary: {
+                  variant: 'body2',
+                  noWrap: true,
+                  sx: {
+                    fontSize: heading.level <= 2 ? '0.8rem' : '0.75rem',
+                    fontWeight: heading.level <= 2 ? 500 : 400,
+                    color: isActive ? 'primary.main' : 'text.primary',
+                  },
+                },
+              }}
+            />
+          </ListItemButton>
+        );
+      })}
+    </List>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        <IconButton
+          size="small"
+          onClick={() => setDrawerOpen(true)}
+          sx={{
+            position: 'fixed',
+            right: 16,
+            top: isPublic ? 80 : 140,
+            zIndex: theme.zIndex.drawer - 1,
+            bgcolor: 'background.paper',
+            boxShadow: 1,
+            '&:hover': { bgcolor: 'action.hover' },
+          }}
+        >
+          <TocIcon fontSize="small" />
+        </IconButton>
+        <Drawer
+          anchor="right"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          sx={{
+            '& .MuiDrawer-paper': {
+              width: TOC_WIDTH,
+              pt: 8,
+            },
+          }}
+        >
+          {tocList}
+        </Drawer>
+      </>
+    );
   }
 
   return (
@@ -102,7 +197,7 @@ export default function TableOfContents({ containerRef }: Props) {
         alignItems: 'flex-start',
       }}
     >
-      <Collapse in={expanded} orientation="horizontal" collapsedSize={0}>
+      <Collapse in={desktopExpanded} orientation="horizontal" collapsedSize={0}>
         <Paper
           elevation={0}
           sx={{
@@ -115,64 +210,24 @@ export default function TableOfContents({ containerRef }: Props) {
             bgcolor: 'transparent',
           }}
         >
-          <List dense sx={{ py: 0.25, pt: 1 }}>
-            {headings.map((heading) => {
-              const isActive = activeIndex === heading.index;
-              return (
-              <ListItemButton
-                key={heading.index}
-                onClick={() => handleClick(heading)}
-                sx={{
-                  pl: 1.5 + (heading.level - minLevel) * 1.5,
-                  py: 0.25,
-                  minHeight: 26,
-                  position: 'relative',
-                  '&::before': isActive ? {
-                    content: '""',
-                    position: 'absolute',
-                    left: 0,
-                    top: 4,
-                    bottom: 4,
-                    width: 3,
-                    bgcolor: 'primary.main',
-                  } : {},
-                  '&:hover': {
-                    bgcolor: 'action.hover',
-                  },
-                }}
-              >
-                <ListItemText
-                  primary={heading.text}
-                  slotProps={{
-                    primary: {
-                      variant: 'body2',
-                      noWrap: true,
-                      sx: {
-                        fontSize: heading.level <= 2 ? '0.8rem' : '0.75rem',
-                        fontWeight: heading.level <= 2 ? 500 : 400,
-                        color: isActive ? 'primary.main' : 'text.primary',
-                      },
-                    },
-                  }}
-                />
-              </ListItemButton>
-            );
-            })}
-          </List>
+          {tocList}
         </Paper>
       </Collapse>
 
-      <Tooltip title={expanded ? 'Collapse TOC' : 'Expand TOC'} placement="left">
+      <Tooltip title={desktopExpanded ? 'Collapse TOC' : 'Expand TOC'} placement="left">
         <IconButton
           size="small"
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setDesktopExpanded(!desktopExpanded)}
           sx={{
-            ml: expanded ? 0 : -1,
+            width: 24,
+            height: 24,
+            minWidth: 24,
+            p: 0,
             color: 'text.secondary',
             '&:hover': { bgcolor: 'action.hover' },
           }}
         >
-          {expanded ? <ChevronRight fontSize="small" /> : <ChevronLeft fontSize="small" />}
+          {desktopExpanded ? <ChevronRight fontSize="small" /> : <ChevronLeft fontSize="small" />}
         </IconButton>
       </Tooltip>
     </Box>

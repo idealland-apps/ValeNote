@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
-import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, Delete as DeleteIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon } from '@mui/icons-material';
+import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon } from '@mui/icons-material';
 import { useNoteStore, ConflictError } from '../stores/noteStore';
 import type { Note, ConflictDetail } from '../services/api';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -82,7 +82,7 @@ export default function NoteEditor({ note }: Props) {
   const [exportOpen, setExportOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [conflictDialog, setConflictDialog] = useState<{ open: boolean; detail: ConflictDetail | null }>({ open: false, detail: null });
-  const { updateNote, forceUpdateNote, deleteNote, setCurrentNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
+  const { updateNote, forceUpdateNote, setCurrentNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   const isDirty = content !== (note.content || '');
@@ -147,13 +147,6 @@ export default function NoteEditor({ note }: Props) {
     setSnackbar({ open: true, message: 'Loaded server version', severity: 'success' });
   };
 
-  const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this note?')) {
-      await deleteNote(note.path);
-      setCurrentNote(null);
-    }
-  };
-
   const handleVersionRestore = () => {
     loadNote(note.path);
   };
@@ -198,14 +191,11 @@ export default function NoteEditor({ note }: Props) {
         <IconButton onClick={() => setAttachmentOpen(true)} title="Attachments">
           <AttachFileIcon fontSize="small" />
         </IconButton>
-        <IconButton onClick={handleSave} disabled={saving} color="primary">
-          <SaveIcon fontSize="small" />
-        </IconButton>
         <IconButton onClick={() => setExportOpen(true)} title="Export">
           <ExportIcon fontSize="small" />
         </IconButton>
-        <IconButton onClick={handleDelete} color="error">
-          <DeleteIcon fontSize="small" />
+        <IconButton onClick={handleSave} disabled={saving} color="primary">
+          <SaveIcon fontSize="small" />
         </IconButton>
       </Box>
       <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
