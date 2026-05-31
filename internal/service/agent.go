@@ -175,7 +175,7 @@ func (s *AgentService) ValidateAPIKey(apiKey string) (*model.Agent, error) {
 		return nil, err
 	}
 
-	go s.db.Model(&agent).Update("last_used_at", gorm.Expr("CURRENT_TIMESTAMP"))
+	go s.db.Model(&agent).Update("last_used_at", gorm.Expr("(strftime('%s', 'now') * 1000)"))
 
 	return &agent, nil
 }

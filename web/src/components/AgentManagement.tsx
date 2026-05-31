@@ -3,7 +3,7 @@ import {
   Box, Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions,
   List, ListItem, ListItemText, ListItemSecondaryAction, IconButton,
   Typography, Chip, Switch, FormControlLabel, Alert, CircularProgress,
-  Paper, Tooltip, Collapse, Autocomplete, Checkbox
+  Paper, Tooltip, Collapse, Autocomplete, Checkbox, Tabs, Tab
 } from '@mui/material';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
@@ -53,6 +53,8 @@ export default function AgentManagement({ notebooks }: Props) {
   const [readonlyNotebooks, setReadonlyNotebooks] = useState<Notebook[]>([]);
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
   const [helpAgentName, setHelpAgentName] = useState('');
+  const [mcpConfigTab, setMcpConfigTab] = useState(0);
+  const [helpConfigTab, setHelpConfigTab] = useState(0);
 
   useEffect(() => {
     loadAgents();
@@ -181,7 +183,69 @@ export default function AgentManagement({ notebooks }: Props) {
 
   const showHelp = (agentName: string) => {
     setHelpAgentName(agentName);
+    setHelpConfigTab(0);
     setHelpDialogOpen(true);
+  };
+
+  const getMcpConfig = (apiKey: string, tab: number) => {
+    const mcpSseUrl = `${window.location.origin}/mcp/sse`;
+    if (tab === 0) {
+      return {
+        label: 'Claude Desktop / Claude Code',
+        path: 'claude_desktop_config.json or .mcp.json',
+        config: `{
+  "mcpServers": {
+    "valenote": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "${mcpSseUrl}",
+        "--header", "Authorization:Bearer ${apiKey}",
+        "--allow-http"
+      ]
+    }
+  }
+}`
+      };
+    } else if (tab === 1) {
+      return {
+        label: 'VS Code + GitHub Copilot',
+        path: 'VS Code Settings (settings.json)',
+        config: `{
+  "mcp": {
+    "servers": {
+      "valenote": {
+        "command": "npx",
+        "args": [
+          "-y", "mcp-remote",
+          "${mcpSseUrl}",
+          "--header", "Authorization:Bearer ${apiKey}",
+          "--allow-http"
+        ]
+      }
+    }
+  }
+}`
+      };
+    } else {
+      return {
+        label: 'Cursor',
+        path: '~/.cursor/mcp.json',
+        config: `{
+  "mcpServers": {
+    "valenote": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "${mcpSseUrl}",
+        "--header", "Authorization:Bearer ${apiKey}",
+        "--allow-http"
+      ]
+    }
+  }
+}`
+      };
+    }
   };
 
   if (loading) {
@@ -294,35 +358,31 @@ export default function AgentManagement({ notebooks }: Props) {
                   <CopyIcon fontSize="small" />
                 </IconButton>
               </Box>
-              <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>MCP Configuration Example:</Typography>
+              <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>MCP Configuration:</Typography>
+              <Tabs
+                value={mcpConfigTab}
+                onChange={(_, v) => setMcpConfigTab(v)}
+                sx={{ mb: 1, minHeight: 36 }}
+              >
+                <Tab label="Claude" sx={{ minHeight: 36, py: 0 }} />
+                <Tab label="VS Code + Copilot" sx={{ minHeight: 36, py: 0 }} />
+                <Tab label="Cursor" sx={{ minHeight: 36, py: 0 }} />
+              </Tabs>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Add to: {getMcpConfig(newAPIKey, mcpConfigTab).path}
+              </Typography>
               <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.100' }}>
                 <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', m: 0 }}>
-{`{
-  "mcpServers": {
-    "valenote": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "${window.location.origin}/mcp"],
-      "env": { "API_KEY": "${newAPIKey}" }
-    }
-  }
-}`}
+                  {getMcpConfig(newAPIKey, mcpConfigTab).config}
                 </Typography>
               </Paper>
               <Button
                 size="small"
                 startIcon={<CopyIcon />}
-                onClick={() => copyToClipboard(`{
-  "mcpServers": {
-    "valenote": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "${window.location.origin}/mcp"],
-      "env": { "API_KEY": "${newAPIKey}" }
-    }
-  }
-}`)}
+                onClick={() => copyToClipboard(getMcpConfig(newAPIKey, mcpConfigTab).config)}
                 sx={{ mt: 1 }}
               >
-                Copy MCP Config
+                Copy Config
               </Button>
             </Alert>
           )}
@@ -438,37 +498,28 @@ export default function AgentManagement({ notebooks }: Props) {
         <DialogTitle>How to Configure Agent: {helpAgentName}</DialogTitle>
         <DialogContent>
           <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
-            1. MCP Server Configuration (Recommended for Claude Code)
+            1. MCP Server Configuration
           </Typography>
+          <Tabs
+            value={helpConfigTab}
+            onChange={(_, v) => setHelpConfigTab(v)}
+            sx={{ mb: 1, minHeight: 36 }}
+          >
+            <Tab label="Claude Desktop / Code" sx={{ minHeight: 36, py: 0 }} />
+            <Tab label="VS Code + GitHub Copilot" sx={{ minHeight: 36, py: 0 }} />
+            <Tab label="Cursor" sx={{ minHeight: 36, py: 0 }} />
+          </Tabs>
           <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              Add to: {getMcpConfig('YOUR_API_KEY', helpConfigTab).path}
+            </Typography>
             <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-{`// Add to claude_desktop_config.json or .mcp.json:
-{
-  "mcpServers": {
-    "valenote": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "${window.location.origin}/mcp"],
-      "env": {
-        "API_KEY": "YOUR_API_KEY"
-      }
-    }
-  }
-}`}
+              {getMcpConfig('YOUR_API_KEY', helpConfigTab).config}
             </Typography>
             <Button
               size="small"
               startIcon={<CopyIcon />}
-              onClick={() => copyToClipboard(`{
-  "mcpServers": {
-    "valenote": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "${window.location.origin}/mcp"],
-      "env": {
-        "API_KEY": "YOUR_API_KEY"
-      }
-    }
-  }
-}`)}
+              onClick={() => copyToClipboard(getMcpConfig('YOUR_API_KEY', helpConfigTab).config)}
               sx={{ mt: 1 }}
             >
               Copy Config

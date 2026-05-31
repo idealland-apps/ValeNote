@@ -77,6 +77,7 @@ func main() {
 	r.Use(corsMiddleware())
 
 	r.GET("/mcp/sse", mcpHandler.HandleSSE)
+	r.POST("/mcp/sse", mcpHandler.HandleSSEPost)
 	r.POST("/mcp", mcpHandler.HandleMCP)
 
 	api := r.Group("/api/v1")
