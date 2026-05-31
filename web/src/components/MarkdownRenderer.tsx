@@ -129,7 +129,7 @@ function CodeBlock({ children, language, isDark }: { children?: React.ReactNode;
         <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
           {language || 'text'}
         </Typography>
-        <Tooltip title={copied ? '已复制' : '复制代码'}>
+        <Tooltip title={copied ? 'Copied' : 'Copy code'}>
           <IconButton size="small" onClick={handleCopy} sx={{ p: 0.5 }}>
             {copied ? <CheckIcon sx={{ fontSize: 16 }} /> : <ContentCopyIcon sx={{ fontSize: 16 }} />}
           </IconButton>

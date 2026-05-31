@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, Tabs, Tab, Box, List, ListItem, ListItemText,
   ListItemSecondaryAction, Select, MenuItem, Slider, Typography, Divider,
-  TextField, Button, Alert, CircularProgress, Switch, Tooltip, Popover
+  TextField, Button, Alert, CircularProgress, Switch, Tooltip, Popover, Autocomplete
 } from '@mui/material';
 import { Colorize as ColorizeIcon } from '@mui/icons-material';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
@@ -432,19 +432,18 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                   </Typography>
 
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 3 }}>
-                    <Select
+                    <Autocomplete
                       value={systemSettings.timezone}
-                      onChange={(e) => setSystemSettings({
+                      onChange={(_, newValue) => setSystemSettings({
                         ...systemSettings,
-                        timezone: e.target.value,
+                        timezone: newValue || 'UTC',
                       })}
+                      options={Intl.supportedValuesOf('timeZone')}
                       size="small"
                       sx={{ minWidth: 300 }}
-                    >
-                      {Intl.supportedValuesOf('timeZone').map((tz) => (
-                        <MenuItem key={tz} value={tz}>{tz}</MenuItem>
-                      ))}
-                    </Select>
+                      renderInput={(params) => <TextField {...params} placeholder="Search timezone..." />}
+                      disableClearable
+                    />
                     <Button
                       variant="contained"
                       onClick={handleSaveSystemSettings}
