@@ -311,11 +311,41 @@ func (s *Server) searchNotes(args json.RawMessage, ctx *RequestContext) ([]Conte
 		params.Limit = 20
 	}
 
-	results, err := s.searchService.Search(params.Query, params.Notebook, nil, params.Limit)
+	// Search metadata (title, path, tags)
+	metaResults, err := s.searchService.Search(params.Query, params.Notebook, nil, params.Limit)
 	if err != nil {
 		return NewErrorContent(err), true
 	}
 
+	// Search fulltext content
+	fulltextResults, err := s.searchService.SearchFulltext(params.Query, params.Notebook, params.Limit)
+	if err != nil {
+		return NewErrorContent(err), true
+	}
+
+	// Merge and dedupe results (metadata results first, then fulltext)
+	seen := make(map[string]bool)
+	results := make([]service.SearchResult, 0, len(metaResults)+len(fulltextResults))
+
+	for _, r := range metaResults {
+		if !seen[r.Path] {
+			seen[r.Path] = true
+			results = append(results, r)
+		}
+	}
+	for _, r := range fulltextResults {
+		if !seen[r.Path] {
+			seen[r.Path] = true
+			results = append(results, r)
+		}
+	}
+
+	// Apply limit after merge
+	if len(results) > params.Limit {
+		results = results[:params.Limit]
+	}
+
+	// Filter by agent access
 	if params.Notebook == "" {
 		filtered := make([]service.SearchResult, 0)
 		for _, result := range results {

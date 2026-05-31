@@ -201,12 +201,43 @@ func (h *AgentAPIHandler) SearchNotes(c *gin.Context) {
 		}
 	}
 
-	results, err := h.searchService.Search(query, notebook, nil, 20)
+	// Search metadata (title, path, tags)
+	metaResults, err := h.searchService.Search(query, notebook, nil, 20)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
 		return
 	}
 
+	// Search fulltext content
+	fulltextResults, err := h.searchService.SearchFulltext(query, notebook, 20)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
+		return
+	}
+
+	// Merge and dedupe results (metadata results first, then fulltext)
+	seen := make(map[string]bool)
+	results := make([]service.SearchResult, 0, len(metaResults)+len(fulltextResults))
+
+	for _, r := range metaResults {
+		if !seen[r.Path] {
+			seen[r.Path] = true
+			results = append(results, r)
+		}
+	}
+	for _, r := range fulltextResults {
+		if !seen[r.Path] {
+			seen[r.Path] = true
+			results = append(results, r)
+		}
+	}
+
+	// Apply limit after merge
+	if len(results) > 20 {
+		results = results[:20]
+	}
+
+	// Filter by agent access
 	if notebook == "" {
 		filtered := make([]service.SearchResult, 0)
 		for _, result := range results {
