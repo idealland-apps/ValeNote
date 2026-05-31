@@ -38,9 +38,10 @@ type InputSchema struct {
 }
 
 type Property struct {
-	Type        string   `json:"type"`
-	Description string   `json:"description"`
-	Enum        []string `json:"enum,omitempty"`
+	Type        string    `json:"type"`
+	Description string    `json:"description,omitempty"`
+	Enum        []string  `json:"enum,omitempty"`
+	Items       *Property `json:"items,omitempty"`
 }
 
 type ToolCallParams struct {

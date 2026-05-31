@@ -56,13 +56,27 @@ func (h *MCPHandler) cleanupSessions() {
 func (h *MCPHandler) HandleMCP(c *gin.Context) {
 	agentID, err := h.authenticateAgent(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, mcp.JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      nil,
+			Error: &mcp.JSONRPCError{
+				Code:    -32000,
+				Message: err.Error(),
+			},
+		})
 		return
 	}
 
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+		c.JSON(http.StatusBadRequest, mcp.JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      nil,
+			Error: &mcp.JSONRPCError{
+				Code:    -32700,
+				Message: "failed to read request body",
+			},
+		})
 		return
 	}
 
@@ -117,7 +131,14 @@ func (h *MCPHandler) HandleSSEPost(c *gin.Context) {
 func (h *MCPHandler) HandleSSE(c *gin.Context) {
 	agentID, err := h.authenticateAgent(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, mcp.JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      nil,
+			Error: &mcp.JSONRPCError{
+				Code:    -32000,
+				Message: err.Error(),
+			},
+		})
 		return
 	}
 

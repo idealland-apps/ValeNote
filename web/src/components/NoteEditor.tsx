@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Stack, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
+import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
 import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon } from '@mui/icons-material';
 import { useNoteStore, ConflictError } from '../stores/noteStore';
 import type { Note, ConflictDetail } from '../services/api';
@@ -176,11 +176,6 @@ export default function NoteEditor({ note }: Props) {
             />
           )}
         </Typography>
-        <Stack direction="row" spacing={0.5}>
-          {note.tags?.map((tag) => (
-            <Chip key={tag} label={tag} />
-          ))}
-        </Stack>
         <Tabs value={mode} onChange={(_, v) => { setMode(v); localStorage.setItem(EDITOR_MODE_KEY, v); }}>
           <Tab icon={<EditIcon fontSize="small" />} value="edit" />
           <Tab icon={<ViewIcon fontSize="small" />} value="preview" />

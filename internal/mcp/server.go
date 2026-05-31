@@ -110,6 +110,7 @@ func (s *Server) GetTools() []Tool {
 					"tags": {
 						Type:        "array",
 						Description: "Tags for the note",
+						Items:       &Property{Type: "string", Description: "A tag string"},
 					},
 				},
 				Required: []string{"path", "content"},
