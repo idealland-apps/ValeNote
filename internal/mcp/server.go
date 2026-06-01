@@ -3,8 +3,8 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
+	"github.com/idealland-apps/valenote/internal/pathutil"
 	"github.com/idealland-apps/valenote/internal/service"
 )
 
@@ -30,7 +30,7 @@ func (s *Server) GetTools() []Tool {
 	return []Tool{
 		{
 			Name:        "list_notebooks",
-			Description: "List all available notebooks",
+			Description: "List all notebooks you have access to. Returns notebook names and whether they are public.",
 			InputSchema: InputSchema{
 				Type:       "object",
 				Properties: map[string]Property{},
@@ -38,38 +38,38 @@ func (s *Server) GetTools() []Tool {
 		},
 		{
 			Name:        "list_notes",
-			Description: "List notes in a notebook or directory",
+			Description: "List all notes in a notebook or subdirectory. Returns note paths, titles, tags, and metadata. Use without path to list all accessible notes.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
-					"notebook": {
+					"path": {
 						Type:        "string",
-						Description: "Notebook name to list notes from",
+						Description: "Notebook or directory path to list (e.g., 'work' for a notebook, 'work/projects' for a subdirectory). Omit to list all accessible notes.",
 					},
 					"recursive": {
 						Type:        "boolean",
-						Description: "Whether to list notes recursively (default: true)",
+						Description: "If true (default), include notes in subdirectories. If false, only list notes in the immediate directory.",
 					},
 				},
 			},
 		},
 		{
 			Name:        "search_notes",
-			Description: "Search for notes by title, content, or tags",
+			Description: "Full-text search across note titles, content, and tags. Returns matching notes with paths and titles.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"query": {
 						Type:        "string",
-						Description: "Search query",
+						Description: "Search query to match against note titles, content, and tags",
 					},
 					"notebook": {
 						Type:        "string",
-						Description: "Limit search to a specific notebook",
+						Description: "Limit search to a specific notebook (optional)",
 					},
 					"limit": {
 						Type:        "integer",
-						Description: "Maximum number of results (default: 20)",
+						Description: "Maximum number of results to return (default: 20)",
 					},
 				},
 				Required: []string{"query"},
@@ -77,13 +77,13 @@ func (s *Server) GetTools() []Tool {
 		},
 		{
 			Name:        "read_note",
-			Description: "Read the full content of a note",
+			Description: "Read the full markdown content of a note. Returns the complete note content including frontmatter.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"path": {
 						Type:        "string",
-						Description: "Path to the note (e.g., 'work/projects/valenote.md')",
+						Description: "Full path to the note (e.g., 'work/projects/meeting-notes.md'). The .md extension is optional.",
 					},
 				},
 				Required: []string{"path"},
@@ -91,25 +91,25 @@ func (s *Server) GetTools() []Tool {
 		},
 		{
 			Name:        "create_note",
-			Description: "Create a new note",
+			Description: "Create a new note with optional title and tags. The note will be created with proper frontmatter including creation timestamp.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"path": {
 						Type:        "string",
-						Description: "Path for the new note (e.g., 'work/projects/new-idea.md')",
+						Description: "Path for the new note (e.g., 'work/projects/new-idea.md'). Parent directories will be created if needed.",
 					},
 					"title": {
 						Type:        "string",
-						Description: "Title of the note",
+						Description: "Title for the note (will be added to frontmatter and as H1 heading)",
 					},
 					"content": {
 						Type:        "string",
-						Description: "Markdown content of the note",
+						Description: "Markdown content of the note (without frontmatter, which is generated automatically)",
 					},
 					"tags": {
 						Type:        "array",
-						Description: "Tags for the note",
+						Description: "Tags for the note (will be added to frontmatter)",
 						Items:       &Property{Type: "string", Description: "A tag string"},
 					},
 				},
@@ -118,24 +118,42 @@ func (s *Server) GetTools() []Tool {
 		},
 		{
 			Name:        "update_note",
-			Description: "Update an existing note",
+			Description: "Update an existing note's content. Can either replace the entire content or append to it. Previous version is automatically saved for history.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
 					"path": {
 						Type:        "string",
-						Description: "Path to the note",
+						Description: "Path to the note to update",
 					},
 					"content": {
 						Type:        "string",
-						Description: "New content for the note",
+						Description: "New content for the note. If append is false, this replaces the entire note. If append is true, this is added to the end.",
 					},
 					"append": {
 						Type:        "boolean",
-						Description: "If true, append content instead of replacing",
+						Description: "If true, append content to the end of the note instead of replacing. Useful for adding new entries to logs or journals.",
 					},
 				},
 				Required: []string{"path", "content"},
+			},
+		},
+		{
+			Name:        "move",
+			Description: "Move or rename a note or folder. Can move between directories, rename in place, or both. Moving a folder moves all its contents. Previous versions and attachments are preserved. Requires write access to both source and target notebooks.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"source": {
+						Type:        "string",
+						Description: "Current path of the note or folder (e.g., 'work/old-name.md' for a note, 'work/projects' for a folder)",
+					},
+					"target": {
+						Type:        "string",
+						Description: "New path for the note or folder (e.g., 'work/new-name.md' to rename, 'archive/old-name.md' to move, 'archive/new-name.md' to move and rename)",
+					},
+				},
+				Required: []string{"source", "target"},
 			},
 		},
 	}
@@ -226,6 +244,8 @@ func (s *Server) callTool(name string, arguments json.RawMessage, ctx *RequestCo
 		return s.createNote(arguments, ctx)
 	case "update_note":
 		return s.updateNote(arguments, ctx)
+	case "move":
+		return s.move(arguments, ctx)
 	default:
 		return NewTextContent(fmt.Sprintf("Unknown tool: %s", name)), true
 	}
@@ -254,13 +274,18 @@ func (s *Server) listNotebooks(ctx *RequestContext) ([]ContentBlock, bool) {
 
 func (s *Server) listNotes(args json.RawMessage, ctx *RequestContext) ([]ContentBlock, bool) {
 	var params struct {
-		Notebook  string `json:"notebook"`
+		Path      string `json:"path"`
 		Recursive *bool  `json:"recursive"`
 	}
 	json.Unmarshal(args, &params)
 
-	if params.Notebook != "" {
-		hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, params.Notebook, "read")
+	if params.Path != "" {
+		cleaned, err := pathutil.Clean(params.Path)
+		if err != nil {
+			return NewTextContent("Error: invalid path"), true
+		}
+		params.Path = cleaned
+		hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(cleaned), "read")
 		if !hasAccess {
 			return NewTextContent("Error: no access to this notebook"), true
 		}
@@ -271,16 +296,15 @@ func (s *Server) listNotes(args json.RawMessage, ctx *RequestContext) ([]Content
 		recursive = *params.Recursive
 	}
 
-	notes, err := s.noteService.ListNotes(params.Notebook, recursive)
+	notes, err := s.noteService.ListNotes(params.Path, recursive)
 	if err != nil {
 		return NewErrorContent(err), true
 	}
 
-	if params.Notebook == "" {
+	if params.Path == "" {
 		filtered := make([]service.Note, 0)
 		for _, note := range notes {
-			notebookName := strings.Split(note.Path, "/")[0]
-			hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "read")
+			hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(note.Path), "read")
 			if hasAccess {
 				filtered = append(filtered, note)
 			}
@@ -301,7 +325,12 @@ func (s *Server) searchNotes(args json.RawMessage, ctx *RequestContext) ([]Conte
 	json.Unmarshal(args, &params)
 
 	if params.Notebook != "" {
-		hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, params.Notebook, "read")
+		cleaned, err := pathutil.Clean(params.Notebook)
+		if err != nil {
+			return NewTextContent("Error: invalid path"), true
+		}
+		params.Notebook = cleaned
+		hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(cleaned), "read")
 		if !hasAccess {
 			return NewTextContent("Error: no access to this notebook"), true
 		}
@@ -349,8 +378,7 @@ func (s *Server) searchNotes(args json.RawMessage, ctx *RequestContext) ([]Conte
 	if params.Notebook == "" {
 		filtered := make([]service.SearchResult, 0)
 		for _, result := range results {
-			notebookName := strings.Split(result.Path, "/")[0]
-			hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "read")
+			hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(result.Path), "read")
 			if hasAccess {
 				filtered = append(filtered, result)
 			}
@@ -368,13 +396,16 @@ func (s *Server) readNote(args json.RawMessage, ctx *RequestContext) ([]ContentB
 	}
 	json.Unmarshal(args, &params)
 
-	notebookName := strings.Split(params.Path, "/")[0]
-	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "read")
+	cleaned, err := pathutil.Clean(params.Path)
+	if err != nil {
+		return NewTextContent("Error: invalid path"), true
+	}
+	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(cleaned), "read")
 	if !hasAccess {
 		return NewTextContent("Error: no access to this notebook"), true
 	}
 
-	note, err := s.noteService.GetNote(params.Path)
+	note, err := s.noteService.GetNote(cleaned)
 	if err != nil {
 		return NewErrorContent(err), true
 	}
@@ -391,14 +422,17 @@ func (s *Server) createNote(args json.RawMessage, ctx *RequestContext) ([]Conten
 	}
 	json.Unmarshal(args, &params)
 
-	notebookName := strings.Split(params.Path, "/")[0]
-	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "readwrite")
+	cleaned, err := pathutil.Clean(params.Path)
+	if err != nil {
+		return NewTextContent("Error: invalid path"), true
+	}
+	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(cleaned), "readwrite")
 	if !hasAccess {
 		return NewTextContent("Error: no write access to this notebook"), true
 	}
 
 	req := &service.CreateNoteRequest{
-		Path:    params.Path,
+		Path:    cleaned,
 		Title:   params.Title,
 		Content: params.Content,
 		Tags:    params.Tags,
@@ -420,8 +454,11 @@ func (s *Server) updateNote(args json.RawMessage, ctx *RequestContext) ([]Conten
 	}
 	json.Unmarshal(args, &params)
 
-	notebookName := strings.Split(params.Path, "/")[0]
-	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, notebookName, "readwrite")
+	cleaned, err := pathutil.Clean(params.Path)
+	if err != nil {
+		return NewTextContent("Error: invalid path"), true
+	}
+	hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(cleaned), "readwrite")
 	if !hasAccess {
 		return NewTextContent("Error: no write access to this notebook"), true
 	}
@@ -431,10 +468,43 @@ func (s *Server) updateNote(args json.RawMessage, ctx *RequestContext) ([]Conten
 		Append:  params.Append,
 	}
 
-	note, _, err := s.noteService.UpdateNote(params.Path, req, 0, ctx.AgentID)
+	note, _, err := s.noteService.UpdateNote(cleaned, req, 0, ctx.AgentID)
 	if err != nil {
 		return NewErrorContent(err), true
 	}
 
 	return NewTextContent(fmt.Sprintf("Updated note: %s", note.Path)), false
+}
+
+func (s *Server) move(args json.RawMessage, ctx *RequestContext) ([]ContentBlock, bool) {
+	var params struct {
+		Source string `json:"source"`
+		Target string `json:"target"`
+	}
+	json.Unmarshal(args, &params)
+
+	cleanedSource, err := pathutil.Clean(params.Source)
+	if err != nil {
+		return NewTextContent("Error: invalid source path"), true
+	}
+	cleanedTarget, err := pathutil.Clean(params.Target)
+	if err != nil {
+		return NewTextContent("Error: invalid target path"), true
+	}
+
+	hasSourceAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(cleanedSource), "readwrite")
+	if !hasSourceAccess {
+		return NewTextContent("Error: no write access to source notebook"), true
+	}
+
+	hasTargetAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(cleanedTarget), "readwrite")
+	if !hasTargetAccess {
+		return NewTextContent("Error: no write access to target notebook"), true
+	}
+
+	if err := s.noteService.MoveFile(cleanedSource, cleanedTarget); err != nil {
+		return NewErrorContent(err), true
+	}
+
+	return NewTextContent(fmt.Sprintf("Moved note: %s -> %s", cleanedSource, cleanedTarget)), false
 }

@@ -60,6 +60,7 @@ func (h *NoteHandler) GetNotebook(c *gin.Context) {
 }
 
 type UpdateNotebookRequest struct {
+	Name        *string `json:"name"`
 	Description *string `json:"description"`
 	IsPublic    *bool   `json:"is_public"`
 }
@@ -72,7 +73,7 @@ func (h *NoteHandler) UpdateNotebook(c *gin.Context) {
 		return
 	}
 
-	notebook, err := h.noteService.UpdateNotebook(name, req.Description, req.IsPublic)
+	notebook, err := h.noteService.UpdateNotebook(name, req.Name, req.Description, req.IsPublic)
 	if err != nil {
 		if err == service.ErrNotebookNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "notebook not found"})

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/idealland-apps/valenote/internal/middleware"
+	"github.com/idealland-apps/valenote/internal/pathutil"
 	"github.com/idealland-apps/valenote/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -48,27 +49,32 @@ func (h *AgentAPIHandler) ListNotebooks(c *gin.Context) {
 
 func (h *AgentAPIHandler) ListNotes(c *gin.Context) {
 	agentID := middleware.GetAgentID(c)
-	notebook := c.Query("notebook")
+	path := c.Query("path")
 
-	if notebook != "" {
-		hasAccess, _ := h.agentService.CheckAgentAccess(agentID, notebook, "read")
+	if path != "" {
+		cleaned, ok := pathutil.CleanOk(path)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		path = cleaned
+		hasAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(cleaned), "read")
 		if !hasAccess {
 			c.JSON(http.StatusForbidden, gin.H{"error": "no access to this notebook"})
 			return
 		}
 	}
 
-	notes, err := h.noteService.ListNotes(notebook, true)
+	notes, err := h.noteService.ListNotes(path, true)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list notes"})
 		return
 	}
 
-	if notebook == "" {
+	if path == "" {
 		filtered := make([]service.Note, 0)
 		for _, note := range notes {
-			notebookName := strings.Split(note.Path, "/")[0]
-			hasAccess, _ := h.agentService.CheckAgentAccess(agentID, notebookName, "read")
+			hasAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(note.Path), "read")
 			if hasAccess {
 				filtered = append(filtered, note)
 			}
@@ -84,14 +90,18 @@ func (h *AgentAPIHandler) GetNote(c *gin.Context) {
 	path := c.Param("path")
 	path = strings.TrimPrefix(path, "/")
 
-	notebookName := strings.Split(path, "/")[0]
-	hasAccess, _ := h.agentService.CheckAgentAccess(agentID, notebookName, "read")
+	cleaned, ok := pathutil.CleanOk(path)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+	hasAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(cleaned), "read")
 	if !hasAccess {
 		c.JSON(http.StatusForbidden, gin.H{"error": "no access to this notebook"})
 		return
 	}
 
-	note, err := h.noteService.GetNote(path)
+	note, err := h.noteService.GetNote(cleaned)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "note not found"})
 		return
@@ -119,15 +129,19 @@ func (h *AgentAPIHandler) CreateNote(c *gin.Context) {
 		return
 	}
 
-	notebookName := strings.Split(req.Path, "/")[0]
-	hasAccess, _ := h.agentService.CheckAgentAccess(agentID, notebookName, "readwrite")
+	cleaned, ok := pathutil.CleanOk(req.Path)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+	hasAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(cleaned), "readwrite")
 	if !hasAccess {
 		c.JSON(http.StatusForbidden, gin.H{"error": "no write access to this notebook"})
 		return
 	}
 
 	noteReq := &service.CreateNoteRequest{
-		Path:    req.Path,
+		Path:    cleaned,
 		Title:   req.Title,
 		Content: req.Content,
 		Tags:    req.Tags,
@@ -150,8 +164,12 @@ func (h *AgentAPIHandler) UpdateNote(c *gin.Context) {
 	path := c.Param("path")
 	path = strings.TrimPrefix(path, "/")
 
-	notebookName := strings.Split(path, "/")[0]
-	hasAccess, _ := h.agentService.CheckAgentAccess(agentID, notebookName, "readwrite")
+	cleaned, ok := pathutil.CleanOk(path)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+	hasAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(cleaned), "readwrite")
 	if !hasAccess {
 		c.JSON(http.StatusForbidden, gin.H{"error": "no write access to this notebook"})
 		return
@@ -171,7 +189,7 @@ func (h *AgentAPIHandler) UpdateNote(c *gin.Context) {
 		Append:  req.Append,
 	}
 
-	note, _, err := h.noteService.UpdateNote(path, noteReq, 0, agentID)
+	note, _, err := h.noteService.UpdateNote(cleaned, noteReq, 0, agentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update note"})
 		return
@@ -194,7 +212,13 @@ func (h *AgentAPIHandler) SearchNotes(c *gin.Context) {
 	}
 
 	if notebook != "" {
-		hasAccess, _ := h.agentService.CheckAgentAccess(agentID, notebook, "read")
+		cleaned, ok := pathutil.CleanOk(notebook)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		notebook = cleaned
+		hasAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(cleaned), "read")
 		if !hasAccess {
 			c.JSON(http.StatusForbidden, gin.H{"error": "no access to this notebook"})
 			return
@@ -241,8 +265,7 @@ func (h *AgentAPIHandler) SearchNotes(c *gin.Context) {
 	if notebook == "" {
 		filtered := make([]service.SearchResult, 0)
 		for _, result := range results {
-			notebookName := strings.Split(result.Path, "/")[0]
-			hasAccess, _ := h.agentService.CheckAgentAccess(agentID, notebookName, "read")
+			hasAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(result.Path), "read")
 			if hasAccess {
 				filtered = append(filtered, result)
 			}
@@ -251,4 +274,50 @@ func (h *AgentAPIHandler) SearchNotes(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, results)
+}
+
+func (h *AgentAPIHandler) MoveNote(c *gin.Context) {
+	agentID := middleware.GetAgentID(c)
+
+	var req struct {
+		Source string `json:"source" binding:"required"`
+		Target string `json:"target" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cleanedSource, ok := pathutil.CleanOk(req.Source)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid source path"})
+		return
+	}
+	cleanedTarget, ok := pathutil.CleanOk(req.Target)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid target path"})
+		return
+	}
+
+	hasSourceAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(cleanedSource), "readwrite")
+	if !hasSourceAccess {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no write access to source notebook"})
+		return
+	}
+
+	hasTargetAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(cleanedTarget), "readwrite")
+	if !hasTargetAccess {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no write access to target notebook"})
+		return
+	}
+
+	if err := h.noteService.MoveFile(cleanedSource, cleanedTarget); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to move note"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"source": cleanedSource,
+		"target": cleanedTarget,
+	})
 }

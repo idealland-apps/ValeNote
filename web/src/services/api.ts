@@ -98,7 +98,7 @@ export const notebookApi = {
   create: (data: { name: string; description?: string }) =>
     api.post<Notebook>('/notebooks', data),
   get: (name: string) => api.get<Notebook>(`/notebooks/${encodeURIComponent(name)}`),
-  update: (name: string, data: { description?: string; is_public?: boolean }) =>
+  update: (name: string, data: { name?: string; description?: string; is_public?: boolean }) =>
     api.put<Notebook>(`/notebooks/${encodeURIComponent(name)}`, data),
   delete: (name: string) => api.delete(`/notebooks/${encodeURIComponent(name)}`),
 };

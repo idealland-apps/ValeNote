@@ -176,6 +176,7 @@ func main() {
 			agentAPI.GET("/notes/*path", agentAPIHandler.GetNote)
 			agentAPI.POST("/notes", agentAPIHandler.CreateNote)
 			agentAPI.PUT("/notes/*path", agentAPIHandler.UpdateNote)
+			agentAPI.POST("/notes/move", agentAPIHandler.MoveNote)
 			agentAPI.GET("/search", agentAPIHandler.SearchNotes)
 		}
 	}

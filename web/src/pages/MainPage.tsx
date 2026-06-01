@@ -98,7 +98,10 @@ export default function MainPage() {
   const handleRenameConfirm = useCallback(async (newName: string) => {
     if (!renameTarget) return;
     if (renameTarget.isNotebook) {
-      // Notebook renaming not supported - use filesystem rename instead
+      const { notebookApi } = await import('../services/api');
+      await notebookApi.update(renameTarget.path, { name: newName });
+      await loadNotebooks();
+      await loadFiles();
       setRenameOpen(false);
       setRenameTarget(null);
       return;
@@ -108,7 +111,7 @@ export default function MainPage() {
     await moveFile(renameTarget.path, newPath);
     setRenameOpen(false);
     setRenameTarget(null);
-  }, [renameTarget, moveFile]);
+  }, [renameTarget, moveFile, loadNotebooks, loadFiles]);
 
   const handleDelete = useCallback((path: string, type: 'file' | 'folder', isNotebook: boolean) => {
     const name = path.split('/').pop() || '';

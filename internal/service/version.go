@@ -10,6 +10,7 @@ import (
 
 	"github.com/idealland-apps/valenote/internal/config"
 	"github.com/idealland-apps/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/pathutil"
 	"gorm.io/gorm"
 )
 
@@ -84,11 +85,16 @@ func (s *VersionService) getModifierName(modifierType string, modifierID int64) 
 }
 
 func (s *VersionService) ListVersions(notePath string, limit int) ([]Version, error) {
+	cleaned, err := pathutil.Clean(notePath)
+	if err != nil {
+		return nil, ErrInvalidPath
+	}
+
 	if limit <= 0 {
 		limit = 50
 	}
 
-	versionDir := s.getVersionDir(notePath)
+	versionDir := s.getVersionDir(cleaned)
 	entries, err := os.ReadDir(versionDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -137,7 +143,12 @@ func (s *VersionService) ListVersions(notePath string, limit int) ([]Version, er
 }
 
 func (s *VersionService) GetVersionContent(notePath, versionID string) (string, *Version, error) {
-	versionDir := s.getVersionDir(notePath)
+	cleaned, err := pathutil.Clean(notePath)
+	if err != nil {
+		return "", nil, ErrInvalidPath
+	}
+
+	versionDir := s.getVersionDir(cleaned)
 	versionFile := filepath.Join(versionDir, versionID)
 
 	content, err := os.ReadFile(versionFile)

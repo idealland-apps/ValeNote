@@ -10,6 +10,7 @@ import (
 
 	"github.com/idealland-apps/valenote/internal/config"
 	"github.com/idealland-apps/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/pathutil"
 	"gorm.io/gorm"
 )
 
@@ -28,17 +29,8 @@ func GetReservedPaths() []string {
 }
 
 func validatePublicPath(path string) error {
-	if strings.Contains(path, "..") {
-		return ErrPathEscape
-	}
-	cleaned := filepath.Clean(path)
-	if strings.HasPrefix(cleaned, "/") || strings.HasPrefix(cleaned, "\\") {
-		return ErrPathEscape
-	}
-	if strings.Contains(cleaned, "..") {
-		return ErrPathEscape
-	}
-	return nil
+	_, err := pathutil.Clean(path)
+	return err
 }
 
 type PublicTreeItem struct {

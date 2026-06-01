@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/idealland-apps/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/pathutil"
 	"gorm.io/gorm"
 )
 
@@ -88,7 +89,12 @@ func (s *LinkService) ResolveLink(linkText, currentNotebook string) (string, err
 }
 
 func (s *LinkService) GetBacklinks(notePath string) ([]Backlink, error) {
-	noteName := strings.TrimSuffix(strings.TrimSuffix(notePath, ".md"), "/")
+	cleaned, err := pathutil.Clean(notePath)
+	if err != nil {
+		return nil, ErrInvalidPath
+	}
+
+	noteName := strings.TrimSuffix(strings.TrimSuffix(cleaned, ".md"), "/")
 	parts := strings.Split(noteName, "/")
 	shortName := parts[len(parts)-1]
 
@@ -100,7 +106,7 @@ func (s *LinkService) GetBacklinks(notePath string) ([]Backlink, error) {
 	var backlinks []Backlink
 
 	for _, meta := range allMetadata {
-		if meta.Path == notePath {
+		if meta.Path == cleaned {
 			continue
 		}
 
@@ -111,7 +117,7 @@ func (s *LinkService) GetBacklinks(notePath string) ([]Backlink, error) {
 
 		links := s.ExtractLinks(note.Content)
 		for _, link := range links {
-			if link == shortName || link == noteName || link == notePath {
+			if link == shortName || link == noteName || link == cleaned {
 				context := s.extractContext(note.Content, link)
 				backlinks = append(backlinks, Backlink{
 					Path:    meta.Path,

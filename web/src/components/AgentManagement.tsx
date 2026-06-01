@@ -550,11 +550,12 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \\
           <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
             <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
 {`GET  /api/v1/agent/notebooks          List accessible notebooks
-GET  /api/v1/agent/notes               List notes
-GET  /api/v1/agent/notes/:path         Read note content
-POST /api/v1/agent/notes               Create note
-PUT  /api/v1/agent/notes/:path         Update note
-GET  /api/v1/agent/search?q=keyword    Search notes`}
+GET  /api/v1/agent/notes?path=...     List notes (path optional, supports subdirs)
+GET  /api/v1/agent/notes/:path        Read note content
+POST /api/v1/agent/notes              Create note {path, content, title?, tags?}
+PUT  /api/v1/agent/notes/:path        Update note {content, append?}
+POST /api/v1/agent/notes/move         Move/rename note or folder {source, target}
+GET  /api/v1/agent/search?q=keyword   Full-text search notes`}
             </Typography>
           </Paper>
 

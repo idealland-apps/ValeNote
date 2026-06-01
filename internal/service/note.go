@@ -16,6 +16,7 @@ import (
 
 	"github.com/idealland-apps/valenote/internal/config"
 	"github.com/idealland-apps/valenote/internal/model"
+	"github.com/idealland-apps/valenote/internal/pathutil"
 	"gorm.io/gorm"
 )
 
@@ -78,8 +79,8 @@ type UpdateNoteRequest struct {
 }
 
 func (s *NoteService) ValidatePath(userPath string) (string, error) {
-	cleaned := filepath.Clean(userPath)
-	if strings.Contains(cleaned, "..") {
+	cleaned, err := pathutil.Clean(userPath)
+	if err != nil {
 		return "", ErrInvalidPath
 	}
 
@@ -127,10 +128,31 @@ func (s *NoteService) GetNotebook(name string) (*model.Notebook, error) {
 	return &notebook, nil
 }
 
-func (s *NoteService) UpdateNotebook(name string, description *string, isPublic *bool) (*model.Notebook, error) {
+func (s *NoteService) UpdateNotebook(currentName string, newName *string, description *string, isPublic *bool) (*model.Notebook, error) {
 	var notebook model.Notebook
-	if err := s.db.Where("name = ?", name).First(&notebook).Error; err != nil {
+	if err := s.db.Where("name = ?", currentName).First(&notebook).Error; err != nil {
 		return nil, ErrNotebookNotFound
+	}
+
+	if newName != nil && *newName != currentName {
+		oldPath := filepath.Join(s.cfg.Notes.RootPath, currentName)
+		newPath := filepath.Join(s.cfg.Notes.RootPath, *newName)
+
+		if _, err := os.Stat(newPath); err == nil {
+			return nil, errors.New("notebook with this name already exists")
+		}
+
+		if err := os.Rename(oldPath, newPath); err != nil {
+			return nil, err
+		}
+
+		s.db.Model(&model.NoteMetadata{}).Where("path LIKE ?", currentName+"/%").Updates(map[string]interface{}{
+			"path": gorm.Expr("REPLACE(path, ?, ?)", currentName+"/", *newName+"/"),
+		})
+
+		s.moveVersionDirRecursive(currentName, *newName)
+
+		notebook.Name = *newName
 	}
 
 	if description != nil {
