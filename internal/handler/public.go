@@ -143,7 +143,6 @@ func (h *PublicHandler) GetNotebookTree(c *gin.Context) {
 func (h *PublicHandler) GetPublicNote(c *gin.Context) {
 	notebook := c.Param("notebook")
 	path := c.Param("path")
-	path = strings.TrimPrefix(path, "/")
 
 	note, err := h.publicService.GetPublicNote(notebook, path)
 	if err != nil {
@@ -157,7 +156,6 @@ func (h *PublicHandler) GetPublicNote(c *gin.Context) {
 func (h *PublicHandler) GetFolderNotes(c *gin.Context) {
 	notebook := c.Param("notebook")
 	path := c.Param("path")
-	path = strings.TrimPrefix(path, "/")
 
 	notes, err := h.publicService.GetFolderNotes(notebook, path)
 	if err != nil {
@@ -171,7 +169,6 @@ func (h *PublicHandler) GetFolderNotes(c *gin.Context) {
 func (h *PublicHandler) ServePublicAttachment(c *gin.Context) {
 	notebook := c.Param("notebook")
 	path := c.Param("path")
-	path = strings.TrimPrefix(path, "/")
 
 	fullPath, err := h.publicService.GetAttachmentPath(notebook, path)
 	if err != nil {

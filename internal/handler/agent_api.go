@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/idealland-apps/valenote/internal/middleware"
 	"github.com/idealland-apps/valenote/internal/pathutil"
@@ -88,7 +87,6 @@ func (h *AgentAPIHandler) ListNotes(c *gin.Context) {
 func (h *AgentAPIHandler) GetNote(c *gin.Context) {
 	agentID := middleware.GetAgentID(c)
 	path := c.Param("path")
-	path = strings.TrimPrefix(path, "/")
 
 	cleaned, ok := pathutil.CleanOk(path)
 	if !ok {
@@ -162,7 +160,6 @@ func (h *AgentAPIHandler) CreateNote(c *gin.Context) {
 func (h *AgentAPIHandler) UpdateNote(c *gin.Context) {
 	agentID := middleware.GetAgentID(c)
 	path := c.Param("path")
-	path = strings.TrimPrefix(path, "/")
 
 	cleaned, ok := pathutil.CleanOk(path)
 	if !ok {

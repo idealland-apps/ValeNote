@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/idealland-apps/valenote/internal/middleware"
 	"github.com/idealland-apps/valenote/internal/service"
@@ -23,7 +22,7 @@ func NewVersionHandler(versionService *service.VersionService, noteService *serv
 }
 
 func (h *VersionHandler) ListVersions(c *gin.Context) {
-	path := strings.TrimPrefix(c.Param("path"), "/")
+	path := c.Param("path")
 	limitStr := c.DefaultQuery("limit", "50")
 	limit, _ := strconv.Atoi(limitStr)
 
@@ -37,7 +36,7 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 }
 
 func (h *VersionHandler) GetVersionContent(c *gin.Context) {
-	notePath := strings.TrimPrefix(c.Param("path"), "/")
+	notePath := c.Param("path")
 	versionID := c.Query("id")
 	if versionID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "version id required"})
@@ -64,7 +63,7 @@ func (h *VersionHandler) GetVersionContent(c *gin.Context) {
 }
 
 func (h *VersionHandler) RestoreVersion(c *gin.Context) {
-	notePath := strings.TrimPrefix(c.Param("path"), "/")
+	notePath := c.Param("path")
 	versionID := c.Query("id")
 	if versionID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "version id required"})
@@ -81,7 +80,7 @@ func (h *VersionHandler) RestoreVersion(c *gin.Context) {
 }
 
 func (h *VersionHandler) DiffVersion(c *gin.Context) {
-	notePath := strings.TrimPrefix(c.Param("path"), "/")
+	notePath := c.Param("path")
 	versionID := c.Query("id")
 	if versionID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "version id required"})

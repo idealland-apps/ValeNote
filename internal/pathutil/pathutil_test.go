@@ -15,6 +15,12 @@ func TestClean(t *testing.T) {
 		{"work//projects/note.md", "work/projects/note.md", false},
 		{"", "", false},
 
+		// Leading slashes should be stripped (from URL path params)
+		{"/test/install/hahaha/gissl.md", "test/install/hahaha/gissl.md", false},
+		{"/work/note.md", "work/note.md", false},
+		{"///work/note.md", "work/note.md", false},
+		{"/", "", false},
+
 		// Invalid paths - direct traversal
 		{"../secret/note.md", "", true},
 		{"../../etc/passwd", "", true},
@@ -23,9 +29,9 @@ func TestClean(t *testing.T) {
 		{"work/../secret/note.md", "secret/note.md", false}, // cleans to valid path
 		{"work/../../etc/passwd", "", true},                 // cleans to ../etc/passwd
 
-		// Invalid paths - absolute
-		{"/etc/passwd", "", true},
-		{"/work/note.md", "", true},
+		// Leading slash + traversal
+		{"/../etc/passwd", "", true},
+		{"/work/../secret", "secret", false},
 	}
 
 	for _, tt := range tests {

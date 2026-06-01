@@ -12,21 +12,24 @@ var (
 )
 
 // Clean normalizes a user-provided path and validates it doesn't escape the root.
-// It rejects paths that start with ".." or "/" after cleaning.
+// It strips leading slashes, cleans the path, and rejects paths that would escape.
 // Returns the cleaned path and an error if the path is invalid.
 func Clean(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}
 
-	cleaned := filepath.Clean(path)
-
-	if strings.HasPrefix(cleaned, "..") {
-		return "", ErrInvalidPath
+	// Strip leading slashes (common from URL path params like c.Param("path"))
+	path = strings.TrimLeft(path, "/")
+	if path == "" {
+		return "", nil
 	}
 
-	if strings.HasPrefix(cleaned, "/") {
-		return "", ErrPathEscape
+	cleaned := filepath.Clean(path)
+
+	// Reject paths that escape the root after cleaning
+	if strings.HasPrefix(cleaned, "..") {
+		return "", ErrInvalidPath
 	}
 
 	return cleaned, nil

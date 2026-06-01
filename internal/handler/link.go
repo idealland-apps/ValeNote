@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/idealland-apps/valenote/internal/service"
 	"github.com/gin-gonic/gin"
@@ -18,7 +17,6 @@ func NewLinkHandler(linkService *service.LinkService) *LinkHandler {
 
 func (h *LinkHandler) GetBacklinks(c *gin.Context) {
 	path := c.Param("path")
-	path = strings.TrimPrefix(path, "/")
 
 	backlinks, err := h.linkService.GetBacklinks(path)
 	if err != nil {

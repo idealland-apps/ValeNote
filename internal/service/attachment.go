@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/idealland-apps/valenote/internal/config"
+	"github.com/idealland-apps/valenote/internal/pathutil"
 )
 
 var (
@@ -79,12 +80,15 @@ func (s *AttachmentService) Upload(notePath string, file *multipart.FileHeader) 
 		}
 	}
 
-	notePath = strings.TrimPrefix(notePath, "/")
-	noteDir := filepath.Dir(notePath)
+	cleanedPath, err := pathutil.Clean(notePath)
+	if err != nil {
+		return nil, ErrPathEscape
+	}
+	noteDir := filepath.Dir(cleanedPath)
 	if noteDir == "." {
 		noteDir = ""
 	}
-	noteBaseName := filepath.Base(notePath)
+	noteBaseName := filepath.Base(cleanedPath)
 	noteDirName := strings.ReplaceAll(noteBaseName, ".", "-")
 	var attachDir string
 	if noteDir == "" {
@@ -139,9 +143,8 @@ func randomHex(n int) string {
 }
 
 func (s *AttachmentService) GetAttachmentPath(relativePath string) (string, error) {
-	relativePath = strings.TrimPrefix(relativePath, "/")
-	cleaned := filepath.Clean(relativePath)
-	if strings.Contains(cleaned, "..") {
+	cleaned, err := pathutil.Clean(relativePath)
+	if err != nil {
 		return "", ErrPathEscape
 	}
 
@@ -166,12 +169,15 @@ type AttachmentInfo struct {
 }
 
 func (s *AttachmentService) List(notePath string) ([]AttachmentInfo, error) {
-	notePath = strings.TrimPrefix(notePath, "/")
-	noteDir := filepath.Dir(notePath)
+	cleanedPath, err := pathutil.Clean(notePath)
+	if err != nil {
+		return nil, ErrPathEscape
+	}
+	noteDir := filepath.Dir(cleanedPath)
 	if noteDir == "." {
 		noteDir = ""
 	}
-	noteBaseName := filepath.Base(notePath)
+	noteBaseName := filepath.Base(cleanedPath)
 	noteDirName := strings.ReplaceAll(noteBaseName, ".", "-")
 
 	var attachDir string
@@ -234,12 +240,15 @@ func getMimeType(ext string) string {
 }
 
 func (s *AttachmentService) Delete(notePath, filename string) error {
-	notePath = strings.TrimPrefix(notePath, "/")
-	noteDir := filepath.Dir(notePath)
+	cleanedPath, err := pathutil.Clean(notePath)
+	if err != nil {
+		return ErrPathEscape
+	}
+	noteDir := filepath.Dir(cleanedPath)
 	if noteDir == "." {
 		noteDir = ""
 	}
-	noteBaseName := filepath.Base(notePath)
+	noteBaseName := filepath.Base(cleanedPath)
 	noteDirName := strings.ReplaceAll(noteBaseName, ".", "-")
 
 	var attachDir string
