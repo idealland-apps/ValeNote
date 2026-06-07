@@ -270,6 +270,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
                 const { from, to } = view.state.selection.main;
                 view.dispatch({
                   changes: { from, to, insert: mdLink },
+                  selection: { anchor: from + mdLink.length },
                 });
                 return true;
               }

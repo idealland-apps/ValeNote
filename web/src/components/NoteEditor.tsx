@@ -57,7 +57,7 @@ function ConflictDialog({ open, onClose, detail, onForceOverwrite, onDiscard }: 
           )}
         </Box>
         <DialogContentText variant="body2" color="text.secondary">
-          Note: Whichever option you choose, the overwritten version can be recovered from version history.
+          Note: If you choose "Force Overwrite", the server version being overwritten can be recovered from version history.
         </DialogContentText>
       </DialogContent>
       <DialogActions>
