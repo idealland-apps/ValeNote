@@ -113,17 +113,16 @@ export function useFileTree(items: FileItem[]) {
   }, []);
 
   useEffect(() => {
-    const paths = items.map(i => i.path);
+    if (items.length === 0) return;
+
     const folderPaths = new Set<string>();
-    for (const p of paths) {
-      const parts = p.split('/');
+    for (const item of items) {
+      const parts = item.path.split('/');
       let current = '';
       for (let i = 0; i < parts.length - 1; i++) {
         current = current ? `${current}/${parts[i]}` : parts[i];
         folderPaths.add(current);
       }
-    }
-    for (const item of items) {
       if (item.type === 'folder') folderPaths.add(item.path);
     }
 

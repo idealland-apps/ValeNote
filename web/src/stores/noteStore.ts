@@ -3,6 +3,28 @@ import { noteApi, notebookApi, fileApi, folderApi } from '../services/api';
 import type { Note, Notebook, FileItem, ConflictDetail } from '../services/api';
 import axios from 'axios';
 
+const CURRENT_NOTE_PATH_KEY = 'valenote_current_note_path';
+
+export function getSavedNotePath(): string | null {
+  try {
+    return localStorage.getItem(CURRENT_NOTE_PATH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveNotePath(path: string | null): void {
+  try {
+    if (path) {
+      localStorage.setItem(CURRENT_NOTE_PATH_KEY, path);
+    } else {
+      localStorage.removeItem(CURRENT_NOTE_PATH_KEY);
+    }
+  } catch {
+    // ignore localStorage errors
+  }
+}
+
 export class ConflictError extends Error {
   detail: ConflictDetail;
   constructor(message: string, detail: ConflictDetail) {
@@ -87,6 +109,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       const { data } = await noteApi.get(path, { signal: controller.signal });
       set({ currentNote: data, isNoteLoading: false, loadNoteAbortController: null });
+      saveNotePath(data.path);
     } catch (error) {
       if (axios.isCancel(error)) {
         return;
@@ -129,6 +152,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     await noteApi.delete(path);
     const notes = get().notes.filter((n) => n.path !== path);
     set({ notes, currentNote: null });
+    saveNotePath(null);
   },
 
   searchNotes: async (query: string, notebook?: string, tags?: string[]) => {
@@ -143,7 +167,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     }
   },
 
-  setCurrentNote: (note: Note | null) => set({ currentNote: note }),
+  setCurrentNote: (note: Note | null) => {
+    set({ currentNote: note });
+    saveNotePath(note?.path ?? null);
+  },
 
   createFolder: async (path: string) => {
     await folderApi.create(path);

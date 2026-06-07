@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Box, Drawer, AppBar, Toolbar, Typography, IconButton, Divider, TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
 import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, Settings as AppSettingsIcon } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
-import { useNoteStore } from '../stores/noteStore';
+import { useNoteStore, getSavedNotePath } from '../stores/noteStore';
 import { useSiteStore } from '../stores/siteStore';
 import NoteEditor from '../components/NoteEditor';
 import { FileTree } from '../components/FileTree';
@@ -50,6 +50,15 @@ export default function MainPage() {
     loadNotebooks();
     loadFiles();
   }, [loadNotebooks, loadFiles]);
+
+  useEffect(() => {
+    const savedPath = getSavedNotePath();
+    if (savedPath && !currentNote) {
+      loadNote(savedPath).catch(() => {
+        // Note may have been deleted, ignore
+      });
+    }
+  }, []);
 
   const handleFileSelect = useCallback((path: string) => {
     if (path.endsWith('.md')) {
