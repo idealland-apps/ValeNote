@@ -34,11 +34,17 @@ func (h *AgentAPIHandler) ListNotebooks(c *gin.Context) {
 
 	accessible := make([]gin.H, 0)
 	for _, nb := range notebooks {
-		hasAccess, _ := h.agentService.CheckAgentAccess(agentID, nb.Name, "read")
-		if hasAccess {
+		hasRead, _ := h.agentService.CheckAgentAccess(agentID, nb.Name, "read")
+		if hasRead {
+			hasWrite, _ := h.agentService.CheckAgentAccess(agentID, nb.Name, "readwrite")
+			permission := "read"
+			if hasWrite {
+				permission = "readwrite"
+			}
 			accessible = append(accessible, gin.H{
-				"name":      nb.Name,
-				"is_public": nb.IsPublic,
+				"name":       nb.Name,
+				"is_public":  nb.IsPublic,
+				"permission": permission,
 			})
 		}
 	}

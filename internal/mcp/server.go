@@ -259,11 +259,17 @@ func (s *Server) listNotebooks(ctx *RequestContext) ([]ContentBlock, bool) {
 
 	accessible := make([]map[string]interface{}, 0)
 	for _, nb := range notebooks {
-		hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, nb.Name, "read")
-		if hasAccess {
+		hasRead, _ := s.agentService.CheckAgentAccess(ctx.AgentID, nb.Name, "read")
+		if hasRead {
+			hasWrite, _ := s.agentService.CheckAgentAccess(ctx.AgentID, nb.Name, "readwrite")
+			permission := "read"
+			if hasWrite {
+				permission = "readwrite"
+			}
 			accessible = append(accessible, map[string]interface{}{
-				"name":      nb.Name,
-				"is_public": nb.IsPublic,
+				"name":       nb.Name,
+				"is_public":  nb.IsPublic,
+				"permission": permission,
 			})
 		}
 	}
