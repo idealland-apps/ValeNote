@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, Tabs, Tab, Box, List, ListItem, ListItemText,
   ListItemSecondaryAction, Select, MenuItem, Slider, Typography, Divider,
-  TextField, Button, Alert, CircularProgress, Switch, Tooltip, Popover, Autocomplete
+  TextField, Button, Alert, CircularProgress, Switch, Tooltip, Popover, Autocomplete, Chip
 } from '@mui/material';
 import { Colorize as ColorizeIcon } from '@mui/icons-material';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
@@ -659,19 +659,65 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
               </TabPanel>
 
               <TabPanel value={tabIndex} index={isAdmin ? 7 : 5}>
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="h4" sx={{ mb: 2, fontWeight: 'bold' }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: 320,
+                    py: 4,
+                  }}
+                >
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontWeight: 500,
+                      fontStyle: 'italic',
+                      letterSpacing: '-0.02em',
+                      mb: 1,
+                    }}
+                  >
                     ValeNote
                   </Typography>
-                  <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                    A modern note-taking application
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: 'text.secondary',
+                      fontStyle: 'italic',
+                      fontWeight: 400,
+                      mb: 3,
+                    }}
+                  >
+                    Your notes. Your cloud. Your AI.
                   </Typography>
-                  <Typography variant="h6" sx={{ mb: 1 }}>
-                    Version: {appVersion}
-                  </Typography>
-                  <Divider sx={{ my: 3 }} />
-                  <Typography variant="body2" color="text.secondary">
-                    Built with Go, React, and Material-UI
+                  <Chip
+                    label={`v ${appVersion}`}
+                    variant="outlined"
+                    sx={{ mb: 4 }}
+                  />
+                  <Box sx={{ flexGrow: 1 }} />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'text.secondary',
+                      '& a': {
+                        color: 'text.primary',
+                        textDecoration: 'none',
+                        '&:hover': {
+                          textDecoration: 'underline',
+                        },
+                      },
+                    }}
+                  >
+                    Made with ❤️ by{' '}
+                    <a
+                      href="https://idealland.app/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      idealland apps
+                    </a>
                   </Typography>
                 </Box>
               </TabPanel>
