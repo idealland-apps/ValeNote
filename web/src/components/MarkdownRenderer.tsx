@@ -174,7 +174,9 @@ function AuthenticatedImage({ src, alt }: { src?: string; alt?: string }) {
 
     let cancelled = false;
 
-    api.get(src.replace(/^.*\/api\/v1/, ''), { responseType: 'blob' })
+    const apiPath = src.replace(/^.*\/api\/v1/, '');
+    const decodedPath = decodeURIComponent(apiPath);
+    api.get(decodedPath, { responseType: 'blob' })
       .then(response => {
         if (cancelled) return;
         const url = URL.createObjectURL(response.data);
@@ -218,9 +220,11 @@ function AuthenticatedLink({ href, children }: { href?: string; children?: React
     e.preventDefault();
 
     try {
-      const response = await api.get(href.replace(apiBase, ''), { responseType: 'blob' });
+      const apiPath = href.replace(apiBase, '');
+      const decodedPath = decodeURIComponent(apiPath);
+      const response = await api.get(decodedPath, { responseType: 'blob' });
       const url = URL.createObjectURL(response.data);
-      const filename = href.split('/').pop() || 'download';
+      const filename = decodeURIComponent(href.split('/').pop() || 'download');
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
@@ -312,7 +316,16 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
   const transformUrl = useMemo(() => {
     const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
 
-    const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/');
+    const safeEncodePath = (path: string) => {
+      return path.split('/').map(segment => {
+        try {
+          const decoded = decodeURIComponent(segment);
+          return encodeURIComponent(decoded);
+        } catch {
+          return encodeURIComponent(segment);
+        }
+      }).join('/');
+    };
 
     return (url: string) => {
       const resolvedPath = resolveUrl(url);
@@ -326,9 +339,9 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
         const pathWithoutNotebook = cleanPath.startsWith(notebook + '/')
           ? cleanPath.slice(notebook.length + 1)
           : cleanPath;
-        return `${apiBase}/public/${encodeURIComponent(notebook)}/attachment/${encodePath(pathWithoutNotebook)}`;
+        return `${apiBase}/public/${encodeURIComponent(notebook)}/attachment/${safeEncodePath(pathWithoutNotebook)}`;
       }
-      return `${apiBase}/attachments/${encodePath(cleanPath)}`;
+      return `${apiBase}/attachments/${safeEncodePath(cleanPath)}`;
     };
   }, [resolveUrl, isPublic, notebook]);
 

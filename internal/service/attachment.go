@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,10 +123,11 @@ func (s *AttachmentService) Upload(notePath string, file *multipart.FileHeader) 
 	}
 
 	var relativePath string
+	encodedDirName := url.PathEscape(noteDirName)
 	if noteDir == "" {
-		relativePath = "./attachments/" + noteDirName + "/" + filename
+		relativePath = "./attachments/" + encodedDirName + "/" + filename
 	} else {
-		relativePath = "./attachments/" + noteDirName + "/" + filename
+		relativePath = "./attachments/" + encodedDirName + "/" + filename
 	}
 
 	return &UploadResult{
@@ -196,6 +198,7 @@ func (s *AttachmentService) List(notePath string) ([]AttachmentInfo, error) {
 	}
 
 	var result []AttachmentInfo
+	encodedDirName := url.PathEscape(noteDirName)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -208,7 +211,7 @@ func (s *AttachmentService) List(notePath string) ([]AttachmentInfo, error) {
 		mimeType := getMimeType(ext)
 		result = append(result, AttachmentInfo{
 			Name:     entry.Name(),
-			Path:     "./attachments/" + noteDirName + "/" + entry.Name(),
+			Path:     "./attachments/" + encodedDirName + "/" + entry.Name(),
 			Size:     info.Size(),
 			MimeType: mimeType,
 		})
