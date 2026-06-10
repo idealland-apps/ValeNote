@@ -3,7 +3,7 @@ import { useDrag, useDrop, DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { Box, Typography, Menu, MenuItem, ListItemIcon, ListItemText, Divider } from '@mui/material';
+import { Box, Typography, Menu, MenuItem, ListItemIcon, ListItemText, Divider, Tooltip } from '@mui/material';
 import {
   Folder as FolderIcon,
   FolderOpen as FolderOpenIcon,
@@ -122,23 +122,34 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
         },
       }}
       label={
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-            py: 0,
-            opacity: isDragging ? 0.5 : 1,
-            bgcolor: isOver && canDrop ? 'action.hover' : 'transparent',
-            borderRadius: 1,
+        <Tooltip
+          title={node.label}
+          enterDelay={500}
+          placement="right"
+          slotProps={{
+            popper: {
+              modifiers: [{ name: 'offset', options: { offset: [0, 8] } }],
+            },
           }}
-          onClick={() => onSelect(node.id, node.type)}
         >
-          {icon}
-          <Typography variant="body2" noWrap sx={{ flexGrow: 1, fontSize: '0.8rem' }}>
-            {node.label}
-          </Typography>
-        </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              py: 0,
+              opacity: isDragging ? 0.5 : 1,
+              bgcolor: isOver && canDrop ? 'action.hover' : 'transparent',
+              borderRadius: 1,
+            }}
+            onClick={() => onSelect(node.id, node.type)}
+          >
+            {icon}
+            <Typography variant="body2" noWrap sx={{ flexGrow: 1, fontSize: '0.8rem' }}>
+              {node.label}
+            </Typography>
+          </Box>
+        </Tooltip>
       }
     >
       {node.children.map(child => (

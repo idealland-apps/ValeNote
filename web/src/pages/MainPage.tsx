@@ -16,16 +16,61 @@ import SettingsDialog from '../components/SettingsDialog';
 import SearchDialog from '../components/SearchDialog';
 import type { Notebook } from '../services/api';
 
-const DRAWER_WIDTH = 280;
+const DEFAULT_DRAWER_WIDTH = 280;
+const MIN_DRAWER_WIDTH = 180;
+const MAX_DRAWER_WIDTH = 500;
+const DRAWER_WIDTH_KEY = 'valenote_drawer_width';
+
+function getStoredDrawerWidth(): number {
+  const stored = localStorage.getItem(DRAWER_WIDTH_KEY);
+  if (stored) {
+    const width = parseInt(stored, 10);
+    if (!isNaN(width) && width >= MIN_DRAWER_WIDTH && width <= MAX_DRAWER_WIDTH) {
+      return width;
+    }
+  }
+  return DEFAULT_DRAWER_WIDTH;
+}
 
 export default function MainPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
+  const [drawerWidth, setDrawerWidth] = useState(getStoredDrawerWidth);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     setDrawerOpen(!isMobile);
   }, [isMobile]);
+
+  const handleMouseDown = useCallback(() => {
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = Math.max(MIN_DRAWER_WIDTH, Math.min(MAX_DRAWER_WIDTH, e.clientX));
+      setDrawerWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+        localStorage.setItem(DRAWER_WIDTH_KEY, drawerWidth.toString());
+      }
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, drawerWidth]);
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [appSettingsOpen, setAppSettingsOpen] = useState(false);
 
@@ -203,10 +248,14 @@ export default function MainPage() {
         anchor="left"
         open={drawerOpen}
         sx={{
-          width: drawerOpen ? DRAWER_WIDTH : 0,
+          width: drawerOpen ? drawerWidth : 0,
           flexShrink: 0,
-          transition: 'width 0.2s',
-          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' },
+          transition: isResizing ? 'none' : 'width 0.2s',
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            boxSizing: 'border-box',
+            transition: isResizing ? 'none' : 'width 0.2s',
+          },
         }}
       >
         <Toolbar />
@@ -254,6 +303,22 @@ export default function MainPage() {
             />
           </Box>
         )}
+        {/* Resize handle */}
+        <Box
+          onMouseDown={handleMouseDown}
+          sx={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 4,
+            height: '100%',
+            cursor: 'col-resize',
+            bgcolor: 'transparent',
+            '&:hover': { bgcolor: 'primary.main' },
+            transition: 'background-color 0.2s',
+            zIndex: 1,
+          }}
+        />
       </Drawer>
 
       <Box
