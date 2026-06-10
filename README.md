@@ -81,8 +81,8 @@ Please change the default password after first login via Settings > User Managem
 
 ```bash
 # Clone
-git clone https://github.com/anthropics/valenote.git
-cd valenote
+git clone https://github.com/idealland-apps/ValeNote.git
+cd ValeNote
 
 # Start backend
 go mod download

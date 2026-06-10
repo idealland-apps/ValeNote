@@ -29,9 +29,10 @@ interface Props {
   notePath?: string;
 }
 
-const createEditorTheme = (isDark: boolean) => EditorView.theme({
+const createEditorTheme = (isDark: boolean, fontSize: number) => EditorView.theme({
   '&': {
     height: '100%',
+    fontSize: `${fontSize}px`,
     ...(isDark && { backgroundColor: '#1e1e1e' }),
   },
   '.cm-scroller': {
@@ -104,8 +105,8 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
   const isDark = theme.palette.mode === 'dark';
 
   const editorThemeExtension = useMemo(
-    () => [createEditorTheme(isDark), syntaxHighlighting(createHighlightStyle(isDark))],
-    [isDark]
+    () => [createEditorTheme(isDark, editorFontSize), syntaxHighlighting(createHighlightStyle(isDark))],
+    [isDark, editorFontSize]
   );
 
   useEffect(() => {
@@ -119,11 +120,11 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
   const uploadFile = useCallback(async (file: File): Promise<string | null> => {
     const currentNotePath = notePathRef.current;
     if (!currentNotePath) {
-      setError('请先保存笔记后再上传文件');
+      setError('Please save the note before uploading files');
       return null;
     }
     if (file.size > 50 * 1024 * 1024) {
-      setError('文件过大 (最大 50MB)');
+      setError('File too large (max 50MB)');
       return null;
     }
     try {
@@ -131,7 +132,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
       const res = await attachmentApi.upload(currentNotePath, file);
       return res.data.path;
     } catch {
-      setError('上传失败');
+      setError('Upload failed');
       return null;
     } finally {
       setUploading(false);
@@ -193,7 +194,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
         selection: { anchor: from + selected.length + 3, head: from + selected.length + 6 },
       });
     } else {
-      insertText('[链接文字](url)', 1, 5);
+      insertText('[Link text](url)', 1, 10);
     }
     view.focus();
   }, [insertText]);
@@ -355,84 +356,84 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 0.5,
+          gap: 0.25,
           px: 1,
-          py: 0.5,
+          py: 0.25,
           borderBottom: 1,
           borderColor: 'divider',
           backgroundColor: 'action.hover',
           flexWrap: 'wrap',
         }}
       >
-        <Tooltip title="标题 1">
-          <IconButton size="small" onClick={() => handleHeading(1)}>
-            <Title fontSize="small" />
+        <Tooltip title="Heading 1">
+          <IconButton size="small" onClick={() => handleHeading(1)} sx={{ p: 0.5 }}>
+            <Title sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="标题 2">
-          <IconButton size="small" onClick={() => handleHeading(2)}>
-            <Box component="span" sx={{ fontSize: '12px', fontWeight: 'bold' }}>H2</Box>
+        <Tooltip title="Heading 2">
+          <IconButton size="small" onClick={() => handleHeading(2)} sx={{ p: 0.5 }}>
+            <Box component="span" sx={{ fontSize: '10px', fontWeight: 'bold' }}>H2</Box>
           </IconButton>
         </Tooltip>
-        <Tooltip title="标题 3">
-          <IconButton size="small" onClick={() => handleHeading(3)}>
-            <Box component="span" sx={{ fontSize: '12px', fontWeight: 'bold' }}>H3</Box>
+        <Tooltip title="Heading 3">
+          <IconButton size="small" onClick={() => handleHeading(3)} sx={{ p: 0.5 }}>
+            <Box component="span" sx={{ fontSize: '10px', fontWeight: 'bold' }}>H3</Box>
           </IconButton>
         </Tooltip>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-        <Tooltip title="加粗 (Ctrl+B)">
-          <IconButton size="small" onClick={handleBold}>
-            <FormatBold fontSize="small" />
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+        <Tooltip title="Bold (Ctrl+B)">
+          <IconButton size="small" onClick={handleBold} sx={{ p: 0.5 }}>
+            <FormatBold sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="斜体 (Ctrl+I)">
-          <IconButton size="small" onClick={handleItalic}>
-            <FormatItalic fontSize="small" />
+        <Tooltip title="Italic (Ctrl+I)">
+          <IconButton size="small" onClick={handleItalic} sx={{ p: 0.5 }}>
+            <FormatItalic sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="删除线">
-          <IconButton size="small" onClick={handleStrikethrough}>
-            <StrikethroughS fontSize="small" />
+        <Tooltip title="Strikethrough">
+          <IconButton size="small" onClick={handleStrikethrough} sx={{ p: 0.5 }}>
+            <StrikethroughS sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="代码">
-          <IconButton size="small" onClick={handleCode}>
-            <Code fontSize="small" />
+        <Tooltip title="Code">
+          <IconButton size="small" onClick={handleCode} sx={{ p: 0.5 }}>
+            <Code sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-        <Tooltip title="引用">
-          <IconButton size="small" onClick={handleQuote}>
-            <FormatQuote fontSize="small" />
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+        <Tooltip title="Quote">
+          <IconButton size="small" onClick={handleQuote} sx={{ p: 0.5 }}>
+            <FormatQuote sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="无序列表">
-          <IconButton size="small" onClick={handleBulletList}>
-            <FormatListBulleted fontSize="small" />
+        <Tooltip title="Bullet List">
+          <IconButton size="small" onClick={handleBulletList} sx={{ p: 0.5 }}>
+            <FormatListBulleted sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="有序列表">
-          <IconButton size="small" onClick={handleNumberedList}>
-            <FormatListNumbered fontSize="small" />
+        <Tooltip title="Numbered List">
+          <IconButton size="small" onClick={handleNumberedList} sx={{ p: 0.5 }}>
+            <FormatListNumbered sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-        <Tooltip title="链接">
-          <IconButton size="small" onClick={handleLink}>
-            <Link fontSize="small" />
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+        <Tooltip title="Link">
+          <IconButton size="small" onClick={handleLink} sx={{ p: 0.5 }}>
+            <Link sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="上传图片">
-          <IconButton size="small" onClick={handleImageClick}>
-            <Image fontSize="small" />
+        <Tooltip title="Upload Image">
+          <IconButton size="small" onClick={handleImageClick} sx={{ p: 0.5 }}>
+            <Image sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="上传附件">
-          <IconButton size="small" onClick={handleAttachmentClick}>
-            <AttachFile fontSize="small" />
+        <Tooltip title="Upload Attachment">
+          <IconButton size="small" onClick={handleAttachmentClick} sx={{ p: 0.5 }}>
+            <AttachFile sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        {uploading && <CircularProgress size={20} sx={{ ml: 1 }} />}
+        {uploading && <CircularProgress size={16} sx={{ ml: 0.5 }} />}
       </Box>
       <Box
         ref={editorRef}
@@ -441,7 +442,6 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
           overflow: 'auto',
           '& .cm-editor': {
             height: '100%',
-            fontSize: `${editorFontSize}px`,
           },
         }}
       />

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Box, Drawer, AppBar, Toolbar, Typography, IconButton, Divider, TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
-import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, Settings as AppSettingsIcon } from '@mui/icons-material';
+import { Box, Drawer, Typography, IconButton, Divider, TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme, Tooltip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
+import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, Settings as AppSettingsIcon, MenuOpen as MenuOpenIcon } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { useNoteStore, getSavedNotePath } from '../stores/noteStore';
 import { useSiteStore } from '../stores/siteStore';
@@ -73,6 +73,7 @@ export default function MainPage() {
   }, [isResizing, drawerWidth]);
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [appSettingsOpen, setAppSettingsOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [createFolderParent, setCreateFolderParent] = useState('');
@@ -223,26 +224,6 @@ export default function MainPage() {
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
-      <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Toolbar variant="dense">
-          <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(!drawerOpen)} sx={{ mr: 1 }}>
-            <MenuIcon fontSize="small" />
-          </IconButton>
-          <Typography variant="subtitle1" noWrap sx={{ flexGrow: 1 }}>
-            {siteName}
-          </Typography>
-          <Typography variant="body2" sx={{ mr: 1 }}>
-            {user?.username}
-          </Typography>
-          <IconButton color="inherit" onClick={() => setAppSettingsOpen(true)} title="Settings">
-            <AppSettingsIcon fontSize="small" />
-          </IconButton>
-          <IconButton color="inherit" onClick={logout}>
-            <LogoutIcon fontSize="small" />
-          </IconButton>
-        </Toolbar>
-      </AppBar>
-
       <Drawer
         variant="persistent"
         anchor="left"
@@ -255,11 +236,28 @@ export default function MainPage() {
             width: drawerWidth,
             boxSizing: 'border-box',
             transition: isResizing ? 'none' : 'width 0.2s',
+            borderRight: '1px solid',
+            borderColor: 'divider',
+            display: 'flex',
+            flexDirection: 'column',
           },
         }}
       >
-        <Toolbar variant="dense" />
-        <Box sx={{ px: 1.5, py: 1 }}>
+        {/* Header: Logo + Site Name + Collapse Button */}
+        <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box component="img" src="/favicon.svg" sx={{ width: 24, height: 24, minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24, flexShrink: 0 }} />
+          <Typography variant="subtitle1" noWrap sx={{ flexGrow: 1, fontWeight: 500 }}>
+            {siteName}
+          </Typography>
+          <Tooltip title="Collapse sidebar">
+            <IconButton onClick={() => setDrawerOpen(false)} size="small">
+              <MenuOpenIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        {/* Search */}
+        <Box sx={{ px: 1.5, pb: 1 }}>
           <TextField
             fullWidth
             placeholder="Search..."
@@ -269,16 +267,21 @@ export default function MainPage() {
                 readOnly: true,
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
+                    <SearchIcon sx={{ fontSize: 16 }} />
                   </InputAdornment>
                 ),
-                sx: { cursor: 'pointer' },
+                sx: { cursor: 'pointer', fontSize: '0.8rem' },
               },
             }}
-            sx={{ '& input': { cursor: 'pointer' } }}
+            sx={{
+              '& input': { cursor: 'pointer', py: 0.5 },
+              '& .MuiOutlinedInput-root': { py: 0 },
+            }}
           />
         </Box>
         <Divider />
+
+        {/* File Tree */}
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
@@ -303,6 +306,25 @@ export default function MainPage() {
             />
           </Box>
         )}
+
+        {/* Bottom Actions: Settings + User + Logout */}
+        <Divider />
+        <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Tooltip title="Settings">
+            <IconButton onClick={() => setAppSettingsOpen(true)} size="small">
+              <AppSettingsIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Typography variant="body2" sx={{ flexGrow: 1, color: 'text.secondary' }} noWrap>
+            {user?.username}
+          </Typography>
+          <Tooltip title="Logout">
+            <IconButton onClick={() => setLogoutConfirmOpen(true)} size="small">
+              <LogoutIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
         {/* Resize handle */}
         <Box
           onMouseDown={handleMouseDown}
@@ -325,17 +347,22 @@ export default function MainPage() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
           transition: 'width 0.2s',
           height: '100vh',
           overflow: 'auto',
         }}
       >
-        <Toolbar variant="dense" />
         {currentNote ? (
-          <NoteEditor note={currentNote} />
+          <NoteEditor note={currentNote} sidebarCollapsed={!drawerOpen} onExpandSidebar={() => setDrawerOpen(true)} />
         ) : (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80%', color: 'text.secondary' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary' }}>
+            {!drawerOpen && (
+              <Tooltip title="Expand sidebar">
+                <IconButton onClick={() => setDrawerOpen(true)} size="small" sx={{ position: 'absolute', top: 8, left: 8 }}>
+                  <MenuIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Typography variant="h6">Select a note or create a new one</Typography>
           </Box>
         )}
@@ -402,6 +429,17 @@ export default function MainPage() {
         onSelect={handleSearchSelect}
         fileItems={fileItems}
       />
+
+      <Dialog open={logoutConfirmOpen} onClose={() => setLogoutConfirmOpen(false)}>
+        <DialogTitle>Confirm Logout</DialogTitle>
+        <DialogContent>
+          <DialogContentText>Are you sure you want to logout?</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLogoutConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={() => { setLogoutConfirmOpen(false); logout(); }} color="error">Logout</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

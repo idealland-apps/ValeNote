@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
-import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon, ZoomOutMap as ZoomOutMapIcon, ZoomInMap as ZoomInMapIcon } from '@mui/icons-material';
+import { Box, Typography, IconButton, Tabs, Tab, Chip, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Tooltip } from '@mui/material';
+import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon, Menu as MenuIcon } from '@mui/icons-material';
 import { useNoteStore, ConflictError } from '../stores/noteStore';
 import type { Note, ConflictDetail } from '../services/api';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -13,6 +13,8 @@ import { formatTimestamp } from '../utils/time';
 
 interface Props {
   note: Note;
+  sidebarCollapsed?: boolean;
+  onExpandSidebar?: () => void;
 }
 
 const EDITOR_MODE_KEY = 'valenote-editor-mode';
@@ -73,7 +75,7 @@ function ConflictDialog({ open, onClose, detail, onForceOverwrite, onDiscard }: 
   );
 }
 
-export default function NoteEditor({ note }: Props) {
+export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: Props) {
   const [content, setContent] = useState(note.content || '');
   const [mode, setMode] = useState<'edit' | 'preview'>(getInitialMode);
   const [saving, setSaving] = useState(false);
@@ -82,7 +84,6 @@ export default function NoteEditor({ note }: Props) {
   const [exportOpen, setExportOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [conflictDialog, setConflictDialog] = useState<{ open: boolean; detail: ConflictDetail | null }>({ open: false, detail: null });
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const { updateNote, forceUpdateNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
@@ -164,22 +165,21 @@ export default function NoteEditor({ note }: Props) {
   }, [handleSave]);
 
   return (
-    <Paper sx={{
-      height: isFullscreen ? '100vh' : 'calc(100vh - 100px)',
+    <Box sx={{
+      height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      ...(isFullscreen && {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1300,
-        borderRadius: 0,
-      }),
+      bgcolor: 'background.paper',
     }}>
-      <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="h6" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        {sidebarCollapsed && (
+          <Tooltip title="Expand sidebar">
+            <IconButton onClick={onExpandSidebar} size="small">
+              <MenuIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+        <Typography variant="subtitle1" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           {note.title || note.path.split('/').pop()}
           {isDirty && (
             <Chip
@@ -190,25 +190,46 @@ export default function NoteEditor({ note }: Props) {
             />
           )}
         </Typography>
-        <Tabs value={mode} onChange={(_, v) => { setMode(v); localStorage.setItem(EDITOR_MODE_KEY, v); }}>
-          <Tab icon={<EditIcon fontSize="small" />} value="edit" />
-          <Tab icon={<ViewIcon fontSize="small" />} value="preview" />
+        <Tabs value={mode} onChange={(_, v) => { setMode(v); localStorage.setItem(EDITOR_MODE_KEY, v); }} sx={{ minHeight: 32, '& .MuiTab-root': { minHeight: 32, minWidth: 40, p: 0.75 } }}>
+          <Tab
+            icon={
+              <Tooltip title="Edit">
+                <EditIcon sx={{ fontSize: 18 }} />
+              </Tooltip>
+            }
+            value="edit"
+          />
+          <Tab
+            icon={
+              <Tooltip title="Preview">
+                <ViewIcon sx={{ fontSize: 18 }} />
+              </Tooltip>
+            }
+            value="preview"
+          />
         </Tabs>
-        <IconButton onClick={() => setIsFullscreen(!isFullscreen)} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
-          {isFullscreen ? <ZoomInMapIcon fontSize="small" /> : <ZoomOutMapIcon fontSize="small" />}
-        </IconButton>
-        <IconButton onClick={() => setHistoryOpen(true)} title="Version History">
-          <HistoryIcon fontSize="small" />
-        </IconButton>
-        <IconButton onClick={() => setAttachmentOpen(true)} title="Attachments">
-          <AttachFileIcon fontSize="small" />
-        </IconButton>
-        <IconButton onClick={() => setExportOpen(true)} title="Export">
-          <ExportIcon fontSize="small" />
-        </IconButton>
-        <IconButton onClick={handleSave} disabled={saving} color="primary">
-          <SaveIcon fontSize="small" />
-        </IconButton>
+        <Tooltip title="Version History">
+          <IconButton onClick={() => setHistoryOpen(true)} size="small">
+            <HistoryIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Attachments">
+          <IconButton onClick={() => setAttachmentOpen(true)} size="small">
+            <AttachFileIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Export">
+          <IconButton onClick={() => setExportOpen(true)} size="small">
+            <ExportIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Save">
+          <span>
+            <IconButton onClick={handleSave} disabled={saving} color="primary" size="small">
+              <SaveIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Box>
       <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
         {mode === 'edit' ? (
@@ -263,6 +284,6 @@ export default function NoteEditor({ note }: Props) {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Paper>
+    </Box>
   );
 }

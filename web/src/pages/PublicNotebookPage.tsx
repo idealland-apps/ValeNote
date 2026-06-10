@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Box, Drawer, AppBar, Toolbar, Typography, CircularProgress, List, ListItem, ListItemButton, ListItemText, Alert, Paper, Breadcrumbs, Link, IconButton, useMediaQuery, useTheme } from '@mui/material';
-import { Description as FileIcon, Folder as FolderIcon, Menu as MenuIcon } from '@mui/icons-material';
+import { Box, Drawer, Typography, CircularProgress, List, ListItem, ListItemButton, ListItemText, Alert, Paper, Breadcrumbs, Link, IconButton, useMediaQuery, useTheme, Tooltip } from '@mui/material';
+import { Description as FileIcon, Folder as FolderIcon, Menu as MenuIcon, MenuOpen as MenuOpenIcon } from '@mui/icons-material';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { publicApi, type PublicTreeItem, type Note } from '../services/api';
@@ -227,20 +227,6 @@ export default function PublicNotebookPage() {
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
-      <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Toolbar>
-          <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(!drawerOpen)} sx={{ mr: 1 }}>
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
-            {notebook}
-          </Typography>
-          <Typography variant="body2" color="inherit">
-            {siteName}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
       <Drawer
         variant="persistent"
         anchor="left"
@@ -249,10 +235,30 @@ export default function PublicNotebookPage() {
           width: drawerOpen ? DRAWER_WIDTH : 0,
           flexShrink: 0,
           transition: 'width 0.2s',
-          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' },
+          '& .MuiDrawer-paper': {
+            width: DRAWER_WIDTH,
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: '1px solid',
+            borderColor: 'divider',
+          },
         }}
       >
-        <Toolbar />
+        {/* Header: Logo + Site Name + Collapse Button */}
+        <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: 1, borderColor: 'divider', minHeight: 48 }}>
+          <Box component="img" src="/favicon.svg" sx={{ width: 24, height: 24, minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24, flexShrink: 0 }} />
+          <Typography variant="subtitle1" noWrap sx={{ flexGrow: 1, fontWeight: 500 }}>
+            {siteName}
+          </Typography>
+          <Tooltip title="Collapse sidebar">
+            <IconButton onClick={() => setDrawerOpen(false)} size="small">
+              <MenuOpenIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        {/* File Tree */}
         <Box sx={{ overflow: 'auto', p: 1, flexGrow: 1 }}>
           {tree && (
             <SimpleTreeView
@@ -265,8 +271,10 @@ export default function PublicNotebookPage() {
             </SimpleTreeView>
           )}
         </Box>
+
+        {/* Credit */}
         {showPoweredBy && (
-          <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider' }}>
             <Typography variant="caption" color="text.secondary">
               Powered by{' '}
               <Link
@@ -286,58 +294,70 @@ export default function PublicNotebookPage() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
           height: '100vh',
           overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <Toolbar />
+        {/* Top bar with breadcrumbs */}
+        <Box sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'background.paper', minHeight: 48 }}>
+          {!drawerOpen && (
+            <Tooltip title="Expand sidebar">
+              <IconButton onClick={() => setDrawerOpen(true)} size="small">
+                <MenuIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Breadcrumbs sx={{ flexGrow: 1, flexWrap: 'nowrap', overflow: 'hidden', '& ol': { flexWrap: 'nowrap' } }}>
+            {breadcrumbs}
+          </Breadcrumbs>
+        </Box>
 
-        <Breadcrumbs sx={{ mb: 2, flexWrap: 'nowrap', overflow: 'hidden', '& ol': { flexWrap: 'nowrap' } }}>
-          {breadcrumbs}
-        </Breadcrumbs>
+        {/* Content */}
+        <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+          {content?.type === 'note' && !Array.isArray(content.data) && (
+            <Box sx={{ display: 'flex', gap: 2, height: '100%' }}>
+              <Paper ref={contentContainerRef} sx={{ p: 3, flexGrow: 1, overflow: 'auto' }}>
+                <MarkdownRenderer
+                  content={content.data.content || ''}
+                  notePath={content.data.path}
+                  isPublic={true}
+                  notebook={notebook}
+                />
+              </Paper>
+              <TableOfContents containerRef={contentContainerRef} isPublic />
+            </Box>
+          )}
 
-        {content?.type === 'note' && !Array.isArray(content.data) && (
-          <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 140px)' }}>
-            <Paper ref={contentContainerRef} sx={{ p: 3, flexGrow: 1, overflow: 'auto' }}>
-              <MarkdownRenderer
-                content={content.data.content || ''}
-                notePath={content.data.path}
-                isPublic={true}
-                notebook={notebook}
-              />
+          {content?.type === 'folder' && Array.isArray(content.data) && (
+            <Paper>
+              <List>
+                {content.data.length === 0 ? (
+                  <ListItem>
+                    <ListItemText primary="No notes in this folder" secondary="This folder is empty" />
+                  </ListItem>
+                ) : (
+                  content.data.map(note => (
+                    <ListItemButton key={note.path} onClick={() => handleNoteClick(note.path)}>
+                      <FileIcon sx={{ mr: 2, color: 'text.secondary' }} />
+                      <ListItemText
+                        primary={note.title || note.path.split('/').pop()?.replace(/\.md$/, '')}
+                        secondary={formatDate(note.updated_at)}
+                      />
+                    </ListItemButton>
+                  ))
+                )}
+              </List>
             </Paper>
-            <TableOfContents containerRef={contentContainerRef} isPublic />
-          </Box>
-        )}
+          )}
 
-        {content?.type === 'folder' && Array.isArray(content.data) && (
-          <Paper>
-            <List>
-              {content.data.length === 0 ? (
-                <ListItem>
-                  <ListItemText primary="No notes in this folder" secondary="This folder is empty" />
-                </ListItem>
-              ) : (
-                content.data.map(note => (
-                  <ListItemButton key={note.path} onClick={() => handleNoteClick(note.path)}>
-                    <FileIcon sx={{ mr: 2, color: 'text.secondary' }} />
-                    <ListItemText
-                      primary={note.title || note.path.split('/').pop()?.replace(/\.md$/, '')}
-                      secondary={formatDate(note.updated_at)}
-                    />
-                  </ListItemButton>
-                ))
-              )}
-            </List>
-          </Paper>
-        )}
-
-        {!content && (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', color: 'text.secondary' }}>
-            <Typography>Select a note or folder from the sidebar</Typography>
-          </Box>
-        )}
+          {!content && (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', color: 'text.secondary' }}>
+              <Typography>Select a note or folder from the sidebar</Typography>
+            </Box>
+          )}
+        </Box>
       </Box>
     </Box>
   );
