@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Paper, Typography, IconButton, Tabs, Tab, Chip, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
-import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon } from '@mui/icons-material';
+import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon, ZoomOutMap as ZoomOutMapIcon, ZoomInMap as ZoomInMapIcon } from '@mui/icons-material';
 import { useNoteStore, ConflictError } from '../stores/noteStore';
 import type { Note, ConflictDetail } from '../services/api';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -82,6 +82,7 @@ export default function NoteEditor({ note }: Props) {
   const [exportOpen, setExportOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [conflictDialog, setConflictDialog] = useState<{ open: boolean; detail: ConflictDetail | null }>({ open: false, detail: null });
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const { updateNote, forceUpdateNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
@@ -163,7 +164,20 @@ export default function NoteEditor({ note }: Props) {
   }, [handleSave]);
 
   return (
-    <Paper sx={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
+    <Paper sx={{
+      height: isFullscreen ? '100vh' : 'calc(100vh - 100px)',
+      display: 'flex',
+      flexDirection: 'column',
+      ...(isFullscreen && {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1300,
+        borderRadius: 0,
+      }),
+    }}>
       <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="h6" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           {note.title || note.path.split('/').pop()}
@@ -180,6 +194,9 @@ export default function NoteEditor({ note }: Props) {
           <Tab icon={<EditIcon fontSize="small" />} value="edit" />
           <Tab icon={<ViewIcon fontSize="small" />} value="preview" />
         </Tabs>
+        <IconButton onClick={() => setIsFullscreen(!isFullscreen)} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
+          {isFullscreen ? <ZoomInMapIcon fontSize="small" /> : <ZoomOutMapIcon fontSize="small" />}
+        </IconButton>
         <IconButton onClick={() => setHistoryOpen(true)} title="Version History">
           <HistoryIcon fontSize="small" />
         </IconButton>

@@ -258,7 +258,7 @@ export default function MainPage() {
           },
         }}
       >
-        <Toolbar />
+        <Toolbar variant="dense" />
         <Box sx={{ px: 1.5, py: 1 }}>
           <TextField
             fullWidth
@@ -331,7 +331,7 @@ export default function MainPage() {
           overflow: 'auto',
         }}
       >
-        <Toolbar />
+        <Toolbar variant="dense" />
         {currentNote ? (
           <NoteEditor note={currentNote} />
         ) : (
