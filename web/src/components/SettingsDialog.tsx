@@ -669,17 +669,23 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
                     py: 4,
                   }}
                 >
-                  <Typography
-                    variant="h4"
-                    sx={{
-                      fontWeight: 500,
-                      fontStyle: 'italic',
-                      letterSpacing: '-0.02em',
-                      mb: 1,
-                    }}
-                  >
-                    ValeNote
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                    <Box
+                      component="img"
+                      src="/default-logo.svg"
+                      alt="ValeNote Logo"
+                      sx={{ width: 40, height: 40 }}
+                    />
+                    <Typography
+                      variant="h4"
+                      sx={{
+                        fontWeight: 500,
+                        letterSpacing: '-0.02em',
+                      }}
+                    >
+                      ValeNote
+                    </Typography>
+                  </Box>
                   <Typography
                     variant="h6"
                     sx={{

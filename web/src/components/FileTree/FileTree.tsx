@@ -92,10 +92,10 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
     }
   } else if (node.type === 'folder') {
     icon = isExpanded
-      ? <FolderOpenIcon fontSize="small" color="action" />
-      : <FolderIcon fontSize="small" color="action" />;
+      ? <FolderOpenIcon fontSize="small" sx={{ color: 'grey.500' }} />
+      : <FolderIcon fontSize="small" sx={{ color: 'grey.500' }} />;
   } else {
-    icon = <FileOutlinedIcon fontSize="small" />;
+    icon = <FileOutlinedIcon fontSize="small" sx={{ color: 'grey.500' }} />;
   }
 
   const isCurrentNote = node.type === 'file' && highlightPath === node.id;
@@ -104,15 +104,26 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
     onContextMenu(e, node);
   }, [onContextMenu, node]);
 
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    // Prevent triggering when clicking on expand/collapse icon
+    const target = e.target as HTMLElement;
+    if (target.closest('.MuiTreeItem-iconContainer')) {
+      return;
+    }
+    onSelect(node.id, node.type);
+  }, [onSelect, node.id, node.type]);
+
   return (
     <TreeItem
       ref={ref}
       itemId={node.id}
       onContextMenu={handleItemContextMenu}
+      onClick={handleClick}
       sx={{
         '& > .MuiTreeItem-content': {
           py: 0,
           minHeight: 24,
+          cursor: 'pointer',
         },
         '& > .MuiTreeItem-content[data-selected]': isCurrentNote ? {
           bgcolor: (theme) => `${theme.palette.primary.main}20`,
@@ -142,10 +153,9 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
               bgcolor: isOver && canDrop ? 'action.hover' : 'transparent',
               borderRadius: 1,
             }}
-            onClick={() => onSelect(node.id, node.type)}
           >
             {icon}
-            <Typography variant="body2" noWrap sx={{ flexGrow: 1, fontSize: '0.8rem' }}>
+            <Typography variant="body2" noWrap sx={{ flexGrow: 1, fontSize: '0.8rem', color: 'grey.700' }}>
               {node.label}
             </Typography>
           </Box>

@@ -14,7 +14,7 @@ export default function PublicIndexPage() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'background.paper' }}>
-        <Box component="img" src="/favicon.svg" sx={{ width: 24, height: 24, minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24, flexShrink: 0 }} />
+        <Box component="img" src="/favicon.svg" sx={{ width: 24, height: 24, minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24, flexShrink: 0, borderRadius: '4px' }} />
         <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
           {siteName}
         </Typography>

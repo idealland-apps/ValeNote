@@ -211,6 +211,7 @@ func main() {
 	if _, err := os.Stat(webDistPath); err == nil {
 		r.Static("/assets", filepath.Join(webDistPath, "assets"))
 		r.StaticFile("/favicon.svg", filepath.Join(webDistPath, "favicon.svg"))
+		r.StaticFile("/default-logo.svg", filepath.Join(webDistPath, "default-logo.svg"))
 
 		indexPath := filepath.Join(webDistPath, "index.html")
 		serveIndex := func(c *gin.Context) {

@@ -247,7 +247,7 @@ export default function PublicNotebookPage() {
       >
         {/* Header: Logo + Site Name + Collapse Button */}
         <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: 1, borderColor: 'divider', minHeight: 48 }}>
-          <Box component="img" src="/favicon.svg" sx={{ width: 24, height: 24, minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24, flexShrink: 0 }} />
+          <Box component="img" src="/favicon.svg" sx={{ width: 24, height: 24, minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24, flexShrink: 0, borderRadius: '4px' }} />
           <Typography variant="subtitle1" noWrap sx={{ flexGrow: 1, fontWeight: 500 }}>
             {siteName}
           </Typography>

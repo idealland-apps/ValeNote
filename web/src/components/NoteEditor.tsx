@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Typography, IconButton, Tabs, Tab, Chip, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Tooltip } from '@mui/material';
-import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon, Menu as MenuIcon } from '@mui/icons-material';
+import { Box, Typography, IconButton, Tabs, Tab, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Tooltip } from '@mui/material';
+import { Save as SaveIcon, Edit as EditIcon, Visibility as ViewIcon, History as HistoryIcon, AttachFile as AttachFileIcon, FileDownload as ExportIcon, Menu as MenuIcon, CheckCircle as CheckCircleIcon, Error as ErrorIcon } from '@mui/icons-material';
 import { useNoteStore, ConflictError } from '../stores/noteStore';
 import type { Note, ConflictDetail } from '../services/api';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -82,10 +82,11 @@ export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+  const [saveToast, setSaveToast] = useState<{ show: boolean; success: boolean; message: string }>({ show: false, success: true, message: '' });
   const [conflictDialog, setConflictDialog] = useState<{ open: boolean; detail: ConflictDetail | null }>({ open: false, detail: null });
   const { updateNote, forceUpdateNote, loadNote, setDirtyChecker, clearDirtyChecker } = useNoteStore();
   const previewContainerRef = useRef<HTMLDivElement>(null);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
 
   const isDirty = content !== (note.content || '');
 
@@ -114,16 +115,21 @@ export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: 
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [note.path]);
 
+  const showSaveToast = (success: boolean, message: string) => {
+    setSaveToast({ show: true, success, message });
+    setTimeout(() => setSaveToast(prev => ({ ...prev, show: false })), 2000);
+  };
+
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
       await updateNote(note.path, content);
-      setSnackbar({ open: true, message: 'Saved', severity: 'success' });
+      showSaveToast(true, 'Saved');
     } catch (error) {
       if (error instanceof ConflictError) {
         setConflictDialog({ open: true, detail: error.detail });
       } else {
-        setSnackbar({ open: true, message: 'Save failed', severity: 'error' });
+        showSaveToast(false, 'Save failed');
       }
     } finally {
       setSaving(false);
@@ -135,9 +141,9 @@ export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: 
     setSaving(true);
     try {
       await forceUpdateNote(note.path, content);
-      setSnackbar({ open: true, message: 'Force overwritten', severity: 'success' });
+      showSaveToast(true, 'Force overwritten');
     } catch {
-      setSnackbar({ open: true, message: 'Save failed', severity: 'error' });
+      showSaveToast(false, 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -146,7 +152,7 @@ export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: 
   const handleDiscardChanges = () => {
     setConflictDialog({ open: false, detail: null });
     loadNote(note.path);
-    setSnackbar({ open: true, message: 'Loaded server version', severity: 'success' });
+    showSaveToast(true, 'Loaded server version');
   };
 
   const handleVersionRestore = () => {
@@ -223,13 +229,44 @@ export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: 
             <ExportIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="Save">
-          <span>
-            <IconButton onClick={handleSave} disabled={saving} color="primary" size="small">
-              <SaveIcon sx={{ fontSize: 20 }} />
-            </IconButton>
-          </span>
-        </Tooltip>
+        <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              right: '100%',
+              mr: 0.5,
+              px: 5,
+              py: 0.75,
+              borderRadius: 1,
+              bgcolor: saveToast.success ? 'success.light' : 'error.light',
+              color: 'white',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+              boxShadow: 2,
+              overflow: 'hidden',
+              transformOrigin: 'right center',
+              transform: saveToast.show ? 'scaleX(1)' : 'scaleX(0)',
+              opacity: saveToast.show ? 1 : 0,
+              transition: 'transform 0.25s ease-out, opacity 0.2s ease-out',
+              minWidth: 200,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.75,
+            }}
+          >
+            {saveToast.success ? <CheckCircleIcon sx={{ fontSize: 18 }} /> : <ErrorIcon sx={{ fontSize: 18 }} />}
+            {saveToast.message}
+          </Box>
+          <Tooltip title="Save">
+            <span>
+              <IconButton ref={saveButtonRef} onClick={handleSave} disabled={saving} color="primary" size="small">
+                <SaveIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
       </Box>
       <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
         {mode === 'edit' ? (
@@ -274,16 +311,6 @@ export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: 
         onForceOverwrite={handleForceOverwrite}
         onDiscard={handleDiscardChanges}
       />
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }
