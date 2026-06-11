@@ -13,6 +13,7 @@ type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	Notes    NotesConfig
+	DataPath string
 }
 
 type ServerConfig struct {
@@ -39,6 +40,7 @@ func Load() *Config {
 	notesRoot := getEnv("VALENOTE_NOTES_PATH", "./notes")
 
 	return &Config{
+		DataPath: dataRoot,
 		Server: ServerConfig{
 			Port: getEnv("VALENOTE_PORT", "8080"),
 			Mode: getEnv("VALENOTE_MODE", "debug"),

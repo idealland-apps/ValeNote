@@ -68,7 +68,7 @@ func main() {
 	remoteSyncHandler := handler.NewRemoteSyncHandler(remoteSyncService)
 	tagHandler := handler.NewTagHandler(searchService)
 	agentHandler := handler.NewAgentHandler(agentService)
-	settingsHandler := handler.NewSettingsHandler(db, webDistPath)
+	settingsHandler := handler.NewSettingsHandler(db, webDistPath, cfg.DataPath)
 	userHandler := handler.NewUserHandler(userService, authService)
 	agentAPIHandler := handler.NewAgentAPIHandler(noteService, searchService, agentService)
 
@@ -210,7 +210,7 @@ func main() {
 	// Serve static files for SPA
 	if _, err := os.Stat(webDistPath); err == nil {
 		r.Static("/assets", filepath.Join(webDistPath, "assets"))
-		r.StaticFile("/favicon.svg", filepath.Join(webDistPath, "favicon.svg"))
+		r.GET("/favicon.svg", settingsHandler.ServeFavicon)
 		r.StaticFile("/default-logo.svg", filepath.Join(webDistPath, "default-logo.svg"))
 
 		indexPath := filepath.Join(webDistPath, "index.html")

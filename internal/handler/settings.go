@@ -15,12 +15,13 @@ import (
 )
 
 type SettingsHandler struct {
-	db         *gorm.DB
+	db          *gorm.DB
 	webDistPath string
+	dataPath    string
 }
 
-func NewSettingsHandler(db *gorm.DB, webDistPath string) *SettingsHandler {
-	return &SettingsHandler{db: db, webDistPath: webDistPath}
+func NewSettingsHandler(db *gorm.DB, webDistPath string, dataPath string) *SettingsHandler {
+	return &SettingsHandler{db: db, webDistPath: webDistPath, dataPath: dataPath}
 }
 
 type SystemSettings struct {
@@ -146,46 +147,52 @@ func (h *SettingsHandler) UploadFavicon(c *gin.Context) {
 
 	mimeType := http.DetectContentType(data)
 
-	// Check if it's already an SVG (DetectContentType returns text/xml for SVG)
+	var svgData []byte
+
 	if len(data) > 5 && string(data[:5]) == "<?xml" || (len(data) > 4 && string(data[:4]) == "<svg") {
-		// It's an SVG, save directly
-		faviconPath := filepath.Join(h.webDistPath, "favicon.svg")
-		if err := os.WriteFile(faviconPath, data, 0644); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save favicon"})
+		svgData = data
+	} else {
+		supportedTypes := map[string]bool{
+			"image/png":                true,
+			"image/jpeg":               true,
+			"image/gif":                true,
+			"image/webp":               true,
+			"image/bmp":                true,
+			"image/x-icon":             true,
+			"image/vnd.microsoft.icon": true,
+		}
+		if !supportedTypes[mimeType] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported image format"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"message": "favicon updated"})
-		return
-	}
 
-	// Check if it's a supported image type
-	supportedTypes := map[string]bool{
-		"image/png":  true,
-		"image/jpeg": true,
-		"image/gif":  true,
-		"image/webp": true,
-		"image/bmp":  true,
-		"image/x-icon": true,
-		"image/vnd.microsoft.icon": true,
-	}
-	if !supportedTypes[mimeType] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported image format"})
-		return
-	}
-
-	// Convert to SVG with embedded base64 image
-	b64 := base64.StdEncoding.EncodeToString(data)
-	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32">
+		b64 := base64.StdEncoding.EncodeToString(data)
+		svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32">
   <image width="32" height="32" xlink:href="data:%s;base64,%s"/>
 </svg>`, mimeType, b64)
+		svgData = []byte(svg)
+	}
 
-	faviconPath := filepath.Join(h.webDistPath, "favicon.svg")
-	if err := os.WriteFile(faviconPath, []byte(svg), 0644); err != nil {
+	faviconPath := filepath.Join(h.dataPath, "favicon.svg")
+	if err := os.WriteFile(faviconPath, svgData, 0644); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save favicon"})
 		return
 	}
 
+	h.upsertSetting("favicon_path", faviconPath)
+
 	c.JSON(http.StatusOK, gin.H{"message": "favicon updated"})
+}
+
+func (h *SettingsHandler) ServeFavicon(c *gin.Context) {
+	var s model.Setting
+	if err := h.db.Where("key = ?", "favicon_path").First(&s).Error; err == nil {
+		if _, err := os.Stat(s.Value); err == nil {
+			c.File(s.Value)
+			return
+		}
+	}
+	c.File(filepath.Join(h.webDistPath, "favicon.svg"))
 }
 
 type UserSettings struct {
