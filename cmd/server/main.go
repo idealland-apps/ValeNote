@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/idealland-apps/valenote/internal/config"
 	"github.com/idealland-apps/valenote/internal/handler"
 	"github.com/idealland-apps/valenote/internal/mcp"
 	"github.com/idealland-apps/valenote/internal/middleware"
 	"github.com/idealland-apps/valenote/internal/model"
 	"github.com/idealland-apps/valenote/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -46,6 +46,7 @@ func main() {
 	versionService := service.NewVersionService(db, cfg)
 	exportService := service.NewExportService(cfg)
 	searchService := service.NewSearchService(db, cfg)
+	noteService.SetSearchService(searchService)
 	publicService := service.NewPublicService(db, cfg, noteService)
 	linkService := service.NewLinkService(db, noteService)
 	remoteSyncService := service.NewRemoteSyncService(db, cfg)

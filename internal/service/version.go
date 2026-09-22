@@ -178,22 +178,32 @@ func (s *VersionService) GetVersionContent(notePath, versionID string) (string, 
 }
 
 func (s *VersionService) RestoreVersion(notePath, versionID string, userID int64, noteService *NoteService) error {
-	content, _, err := s.GetVersionContent(notePath, versionID)
+	cleaned, err := noteService.ValidatePath(notePath)
+	if err != nil {
+		return err
+	}
+	content, _, err := s.GetVersionContent(cleaned, versionID)
 	if err != nil {
 		return err
 	}
 
-	currentPath := filepath.Join(s.cfg.Notes.RootPath, notePath)
+	currentPath := filepath.Join(s.cfg.Notes.RootPath, cleaned)
 	currentContent, err := os.ReadFile(currentPath)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
 	if len(currentContent) > 0 {
-		noteService.SaveVersion(notePath, currentContent, userID, 0)
+		if err := noteService.SaveVersion(cleaned, currentContent, userID, 0); err != nil {
+			return err
+		}
 	}
 
-	return os.WriteFile(currentPath, []byte(content), 0644)
+	if err := os.WriteFile(currentPath, []byte(content), 0644); err != nil {
+		return err
+	}
+	noteService.invalidateSearchPaths(cleaned)
+	return noteService.indexNote(cleaned)
 }
 
 func (s *VersionService) CleanupOldVersions(notePath string) error {

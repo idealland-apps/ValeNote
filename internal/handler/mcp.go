@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/idealland-apps/valenote/internal/mcp"
-	"github.com/idealland-apps/valenote/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/idealland-apps/valenote/internal/mcp"
+	"github.com/idealland-apps/valenote/internal/service"
 )
 
 type sseSession struct {
@@ -93,7 +93,7 @@ func (h *MCPHandler) HandleMCP(c *gin.Context) {
 		return
 	}
 
-	ctx := &mcp.RequestContext{AgentID: agentID}
+	ctx := &mcp.RequestContext{AgentID: agentID, Context: c.Request.Context()}
 	resp := h.server.HandleRequest(&req, ctx)
 
 	// Check if this is a legacy SSE session that expects responses via SSE stream

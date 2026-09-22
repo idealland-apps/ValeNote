@@ -123,8 +123,8 @@ export const noteApi = {
   delete: (path: string) => api.delete(`/notes/${encodePath(path)}`),
   search: (q: string, notebook?: string, tags?: string[], limit = 20) =>
     api.get<Note[]>('/search', { params: { q, notebook, tags: tags?.join(','), limit } }),
-  searchFulltext: (q: string, notebook?: string, limit = 20) =>
-    api.get<SearchResult[]>('/search/fulltext', { params: { q, notebook, limit } }),
+  searchFulltext: (q: string, notebook?: string, limit = 20, signal?: AbortSignal) =>
+    api.get<SearchResult[]>('/search/fulltext', { params: { q, notebook, limit }, signal }),
 };
 
 export interface UploadResult {

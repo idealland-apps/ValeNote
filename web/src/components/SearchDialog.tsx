@@ -42,48 +42,46 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
   const [fulltextResults, setFulltextResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (open) {
       setQuery('');
       setFulltextResults([]);
+      setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
 
-  const searchFulltext = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setFulltextResults([]);
-      return;
-    }
-
+  const searchFulltext = useCallback(async (q: string, signal: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await noteApi.searchFulltext(q.trim());
-      setFulltextResults(res.data || []);
+      const res = await noteApi.searchFulltext(q.trim(), undefined, undefined, signal);
+      if (!signal.aborted) setFulltextResults(res.data || []);
     } catch {
-      setFulltextResults([]);
+      if (!signal.aborted) setFulltextResults([]);
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (tab === 0 && query) {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-      debounceRef.current = setTimeout(() => {
-        searchFulltext(query);
-      }, 300);
-    }
+    if (!open || tab !== 0 || !query.trim()) return;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      searchFulltext(query, controller.signal);
+    }, 300);
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
+      // Also guard callbacks when a transport completes despite cancellation.
+      controller.abort();
+      clearTimeout(timeout);
     };
-  }, [query, tab, searchFulltext]);
+  }, [open, query, tab, searchFulltext]);
+
+  const resetFulltext = () => {
+    setFulltextResults([]);
+    setLoading(false);
+  };
 
   const filteredFiles = query && fileItems
     ? fileItems.filter(item =>
@@ -129,7 +127,10 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
             size="small"
             placeholder={tab === 0 ? 'Search note content...' : 'Search files and folders...'}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              resetFulltext();
+            }}
             onKeyDown={handleKeyDown}
             autoComplete="off"
             slotProps={{
@@ -139,7 +140,7 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
                     <SearchIcon sx={{ fontSize: 20 }} />
                   </InputAdornment>
                 ),
-                endAdornment: loading ? (
+                endAdornment: open && loading ? (
                   <InputAdornment position="end">
                     <CircularProgress size={18} />
                   </InputAdornment>
@@ -151,7 +152,10 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
 
         <Tabs
           value={tab}
-          onChange={(_, v) => setTab(v)}
+          onChange={(_, v) => {
+            setTab(v);
+            resetFulltext();
+          }}
           sx={{ px: 1.5, minHeight: 36, borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab icon={<ContentIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Full-text" sx={{ minHeight: 36, py: 0.5, fontSize: '0.8125rem' }} />

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -16,6 +17,7 @@ type Server struct {
 
 type RequestContext struct {
 	AgentID int64
+	Context context.Context
 }
 
 func NewServer(noteService *service.NoteService, searchService *service.SearchService, agentService *service.AgentService) *Server {
@@ -328,7 +330,9 @@ func (s *Server) searchNotes(args json.RawMessage, ctx *RequestContext) ([]Conte
 		Notebook string `json:"notebook"`
 		Limit    int    `json:"limit"`
 	}
-	json.Unmarshal(args, &params)
+	if err := json.Unmarshal(args, &params); err != nil {
+		return NewTextContent("Error: invalid search arguments"), true
+	}
 
 	if params.Notebook != "" {
 		cleaned, err := pathutil.Clean(params.Notebook)
@@ -346,50 +350,19 @@ func (s *Server) searchNotes(args json.RawMessage, ctx *RequestContext) ([]Conte
 		params.Limit = 20
 	}
 
-	// Search metadata (title, path, tags)
-	metaResults, err := s.searchService.Search(params.Query, params.Notebook, nil, params.Limit)
+	requestCtx := ctx.Context
+	if requestCtx == nil {
+		requestCtx = context.Background()
+	}
+	allowed, err := s.agentService.ReadableNotebooks(requestCtx, ctx.AgentID)
 	if err != nil {
 		return NewErrorContent(err), true
 	}
-
-	// Search fulltext content
-	fulltextResults, err := s.searchService.SearchFulltext(params.Query, params.Notebook, params.Limit)
+	results, err := s.searchService.SearchContext(requestCtx, service.SearchOptions{
+		Query: params.Query, Notebook: params.Notebook, Limit: params.Limit, AllowedNotebooks: allowed,
+	})
 	if err != nil {
 		return NewErrorContent(err), true
-	}
-
-	// Merge and dedupe results (metadata results first, then fulltext)
-	seen := make(map[string]bool)
-	results := make([]service.SearchResult, 0, len(metaResults)+len(fulltextResults))
-
-	for _, r := range metaResults {
-		if !seen[r.Path] {
-			seen[r.Path] = true
-			results = append(results, r)
-		}
-	}
-	for _, r := range fulltextResults {
-		if !seen[r.Path] {
-			seen[r.Path] = true
-			results = append(results, r)
-		}
-	}
-
-	// Apply limit after merge
-	if len(results) > params.Limit {
-		results = results[:params.Limit]
-	}
-
-	// Filter by agent access
-	if params.Notebook == "" {
-		filtered := make([]service.SearchResult, 0)
-		for _, result := range results {
-			hasAccess, _ := s.agentService.CheckAgentAccess(ctx.AgentID, pathutil.ExtractNotebook(result.Path), "read")
-			if hasAccess {
-				filtered = append(filtered, result)
-			}
-		}
-		results = filtered
 	}
 
 	data, _ := json.MarshalIndent(results, "", "  ")

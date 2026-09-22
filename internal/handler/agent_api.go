@@ -3,10 +3,10 @@ package handler
 import (
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/idealland-apps/valenote/internal/middleware"
 	"github.com/idealland-apps/valenote/internal/pathutil"
 	"github.com/idealland-apps/valenote/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 type AgentAPIHandler struct {
@@ -228,52 +228,17 @@ func (h *AgentAPIHandler) SearchNotes(c *gin.Context) {
 		}
 	}
 
-	// Search metadata (title, path, tags)
-	metaResults, err := h.searchService.Search(query, notebook, nil, 20)
+	allowed, err := h.agentService.ReadableNotebooks(c.Request.Context(), agentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
 		return
 	}
-
-	// Search fulltext content
-	fulltextResults, err := h.searchService.SearchFulltext(query, notebook, 20)
+	results, err := h.searchService.SearchContext(c.Request.Context(), service.SearchOptions{
+		Query: query, Notebook: notebook, Limit: 20, AllowedNotebooks: allowed,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
 		return
-	}
-
-	// Merge and dedupe results (metadata results first, then fulltext)
-	seen := make(map[string]bool)
-	results := make([]service.SearchResult, 0, len(metaResults)+len(fulltextResults))
-
-	for _, r := range metaResults {
-		if !seen[r.Path] {
-			seen[r.Path] = true
-			results = append(results, r)
-		}
-	}
-	for _, r := range fulltextResults {
-		if !seen[r.Path] {
-			seen[r.Path] = true
-			results = append(results, r)
-		}
-	}
-
-	// Apply limit after merge
-	if len(results) > 20 {
-		results = results[:20]
-	}
-
-	// Filter by agent access
-	if notebook == "" {
-		filtered := make([]service.SearchResult, 0)
-		for _, result := range results {
-			hasAccess, _ := h.agentService.CheckAgentAccess(agentID, pathutil.ExtractNotebook(result.Path), "read")
-			if hasAccess {
-				filtered = append(filtered, result)
-			}
-		}
-		results = filtered
 	}
 
 	c.JSON(http.StatusOK, results)

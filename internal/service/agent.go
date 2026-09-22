@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -198,6 +199,16 @@ func (s *AgentService) CheckAgentAccess(agentID int64, notebookName string, requ
 		return perm.AccessLevel == "read" || perm.AccessLevel == "readwrite", nil
 	}
 	return perm.AccessLevel == "readwrite", nil
+}
+
+// ReadableNotebooks returns an explicit allowlist; an empty result never means unrestricted.
+func (s *AgentService) ReadableNotebooks(ctx context.Context, agentID int64) ([]string, error) {
+	names := make([]string, 0)
+	err := s.db.WithContext(ctx).Model(&model.Notebook{}).
+		Joins("JOIN agent_notebook_permissions AS p ON p.notebook_id = notebooks.id").
+		Where("p.agent_id = ? AND p.access_level IN ?", agentID, []string{"read", "readwrite"}).
+		Distinct().Order("notebooks.name").Pluck("notebooks.name", &names).Error
+	return names, err
 }
 
 func generateAPIKey() (string, error) {

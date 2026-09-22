@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -21,30 +22,42 @@ import (
 )
 
 var (
-	ErrNoteNotFound    = errors.New("note not found")
+	ErrNoteNotFound     = errors.New("note not found")
 	ErrNotebookNotFound = errors.New("notebook not found")
-	ErrInvalidPath     = errors.New("invalid path")
-	ErrPathEscape      = errors.New("path escapes root directory")
+	ErrInvalidPath      = errors.New("invalid path")
+	ErrPathEscape       = errors.New("path escapes root directory")
 )
 
 type NoteService struct {
-	db  *gorm.DB
-	cfg *config.Config
+	db     *gorm.DB
+	cfg    *config.Config
+	search *SearchService
 }
 
 func NewNoteService(db *gorm.DB, cfg *config.Config) *NoteService {
 	return &NoteService{db: db, cfg: cfg}
 }
 
+// SetSearchService binds the shared cache before the server starts serving requests.
+func (s *NoteService) SetSearchService(search *SearchService) {
+	s.search = search
+}
+
+func (s *NoteService) invalidateSearchPaths(paths ...string) {
+	if s.search != nil {
+		s.search.InvalidatePaths(paths...)
+	}
+}
+
 type Note struct {
-	Path      string `json:"path"`
-	Title     string `json:"title"`
-	Content   string `json:"content,omitempty"`
+	Path      string   `json:"path"`
+	Title     string   `json:"title"`
+	Content   string   `json:"content,omitempty"`
 	Tags      []string `json:"tags,omitempty"`
-	Size      int64  `json:"size"`
-	CreatedAt int64  `json:"created_at"`
-	UpdatedAt int64  `json:"updated_at"`
-	ETag      string `json:"etag,omitempty"`
+	Size      int64    `json:"size"`
+	CreatedAt int64    `json:"created_at"`
+	UpdatedAt int64    `json:"updated_at"`
+	ETag      string   `json:"etag,omitempty"`
 }
 
 var ErrConflict = errors.New("conflict")
@@ -145,6 +158,7 @@ func (s *NoteService) UpdateNotebook(currentName string, newName *string, descri
 		if err := os.Rename(oldPath, newPath); err != nil {
 			return nil, err
 		}
+		s.invalidateSearchPaths(currentName, *newName)
 
 		s.db.Model(&model.NoteMetadata{}).Where("path LIKE ?", currentName+"/%").Updates(map[string]interface{}{
 			"path": gorm.Expr("REPLACE(path, ?, ?)", currentName+"/", *newName+"/"),
@@ -187,6 +201,7 @@ func (s *NoteService) DeleteNotebook(name string) error {
 	if err := os.RemoveAll(notebookPath); err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	s.invalidateSearchPaths(name)
 
 	return s.db.Delete(&notebook).Error
 }
@@ -287,8 +302,8 @@ func (s *NoteService) CreateNote(req *CreateNoteRequest, userID int64) (*Note, e
 		return nil, err
 	}
 
+	s.invalidateSearchPaths(cleanPath)
 	s.indexNote(cleanPath)
-	InvalidateSearchCache()
 
 	return s.GetNote(cleanPath)
 }
@@ -342,6 +357,7 @@ func (s *NoteService) UpdateNote(path string, req *UpdateNoteRequest, userID int
 		return nil, nil, err
 	}
 
+	s.invalidateSearchPaths(cleanPath)
 	s.indexNote(cleanPath)
 
 	note, err := s.GetNote(cleanPath)
@@ -372,53 +388,40 @@ func (s *NoteService) DeleteNote(path string) error {
 	s.deleteAttachmentDir(cleanPath)
 	s.deleteVersionDir(cleanPath)
 
-	InvalidateSearchCache()
+	s.invalidateSearchPaths(cleanPath)
 
 	return nil
 }
 
 func (s *NoteService) Search(query, notebook string, tags []string, limit int) ([]Note, error) {
-	var metadata []model.NoteMetadata
+	return s.SearchContext(context.Background(), query, notebook, tags, limit)
+}
 
-	tx := s.db.Model(&model.NoteMetadata{})
-
-	if query != "" {
-		tx = tx.Where("title LIKE ? OR path LIKE ?", "%"+query+"%", "%"+query+"%")
+// SearchContext preserves the existing /search Note response while sharing the scanner.
+func (s *NoteService) SearchContext(ctx context.Context, query, notebook string, tags []string, limit int) ([]Note, error) {
+	search := s.search
+	if search == nil {
+		search = NewSearchService(s.db, s.cfg)
 	}
-
-	if notebook != "" {
-		tx = tx.Where("path LIKE ?", notebook+"/%")
-	}
-
-	if len(tags) > 0 {
-		for _, tag := range tags {
-			tx = tx.Where("tags LIKE ?", "%\""+tag+"\"%")
-		}
-	}
-
-	if limit > 0 {
-		tx = tx.Limit(limit)
-	}
-
-	if err := tx.Find(&metadata).Error; err != nil {
+	results, err := search.SearchContext(ctx, SearchOptions{Query: query, Notebook: notebook, Tags: tags, Limit: limit})
+	if err != nil {
 		return nil, err
 	}
-
-	var notes []Note
-	for _, m := range metadata {
-		var tagList []string
-		if m.Tags != "" {
-			json.Unmarshal([]byte(m.Tags), &tagList)
+	notes := make([]Note, 0, len(results))
+	for _, result := range results {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		notes = append(notes, Note{
-			Path:      m.Path,
-			Title:     m.Title,
-			Tags:      tagList,
-			Size:      m.Size,
-			UpdatedAt: m.UpdatedAt,
-		})
+		info, err := os.Stat(filepath.Join(s.cfg.Notes.RootPath, result.Path))
+		if os.IsNotExist(err) {
+			continue // Removed after the search snapshot.
+		}
+		if err != nil {
+			return nil, err
+		}
+		notes = append(notes, Note{Path: result.Path, Title: result.Title, Tags: result.Tags,
+			Size: info.Size(), UpdatedAt: info.ModTime().UnixMilli()})
 	}
-
 	return notes, nil
 }
 
@@ -803,6 +806,7 @@ func (s *NoteService) DeleteFolder(path string) error {
 	if err := os.RemoveAll(fullPath); err != nil {
 		return err
 	}
+	s.invalidateSearchPaths(cleanPath)
 
 	s.db.Where("path LIKE ?", cleanPath+"/%").Delete(&model.NoteMetadata{})
 
@@ -833,6 +837,7 @@ func (s *NoteService) MoveFile(source, target string) error {
 	if err := os.Rename(fullSource, fullTarget); err != nil {
 		return err
 	}
+	s.invalidateSearchPaths(sourcePath, targetPath)
 
 	info, _ := os.Stat(fullTarget)
 	if info != nil && !info.IsDir() {
@@ -922,6 +927,7 @@ func (s *NoteService) copyFileAndIndex(src, dst, dstRelPath string) error {
 	}
 
 	if strings.HasSuffix(dstRelPath, ".md") {
+		s.invalidateSearchPaths(dstRelPath)
 		s.indexNote(dstRelPath)
 	}
 

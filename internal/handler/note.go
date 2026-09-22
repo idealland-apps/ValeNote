@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/idealland-apps/valenote/internal/middleware"
 	"github.com/idealland-apps/valenote/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 type NoteHandler struct {
@@ -224,7 +224,7 @@ func (h *NoteHandler) SearchNotes(c *gin.Context) {
 		tags = strings.Split(tagsStr, ",")
 	}
 
-	notes, err := h.noteService.Search(query, notebook, tags, limit)
+	notes, err := h.noteService.SearchContext(c.Request.Context(), query, notebook, tags, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
 		return
@@ -240,7 +240,9 @@ func (h *NoteHandler) SearchFulltext(c *gin.Context) {
 
 	limit, _ := strconv.Atoi(limitStr)
 
-	results, err := h.searchService.SearchFulltext(query, notebook, limit)
+	results, err := h.searchService.SearchContext(c.Request.Context(), service.SearchOptions{
+		Query: query, Notebook: notebook, Limit: limit, FulltextOnly: true,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
 		return
