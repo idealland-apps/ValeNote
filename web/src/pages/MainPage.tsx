@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Box, Drawer, Typography, IconButton, Divider, TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme, Tooltip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
-import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, Settings as AppSettingsIcon, MenuOpen as MenuOpenIcon } from '@mui/icons-material';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Box, Drawer, Typography, IconButton, Divider, TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme, Tooltip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Alert } from '@mui/material';
+import { Menu as MenuIcon, Search as SearchIcon, Logout as LogoutIcon, Settings as AppSettingsIcon, MenuOpen as MenuOpenIcon, Refresh as RefreshIcon, CreateNewFolder as NewNotebookIcon, UnfoldLess as CollapseIcon } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { useNoteStore, getSavedNotePath } from '../stores/noteStore';
 import { useSiteStore } from '../stores/siteStore';
 import NoteEditor from '../components/NoteEditor';
 import { FileTree } from '../components/FileTree';
+import type { FileTreeHandle } from '../components/FileTree';
 import CreateFolderDialog from '../components/CreateFolderDialog';
 import CreateFileDialog from '../components/CreateFileDialog';
 import CreateNotebookDialog from '../components/CreateNotebookDialog';
@@ -87,9 +88,11 @@ export default function MainPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ path: string; name: string; type: 'file' | 'folder'; isNotebook: boolean } | null>(null);
   const [clipboardPath, setClipboardPath] = useState<string | null>(null);
+  const [fileTreeError, setFileTreeError] = useState<string | null>(null);
+  const fileTreeRef = useRef<FileTreeHandle>(null);
 
   const { user, logout } = useAuthStore();
-  const { notebooks, fileItems, currentNote, isLoading, loadNotebooks, loadFiles, loadNote, createNote, deleteNote, createFolder, deleteFolder, moveFile, copyFile, checkDirty } = useNoteStore();
+  const { notebooks, fileItems, currentNote, isLoading, isFileTreeRefreshing, refreshFileTree, loadNotebooks, loadFiles, loadNote, createNote, deleteNote, createFolder, deleteFolder, moveFile, copyFile, checkDirty } = useNoteStore();
   const { siteName } = useSiteStore();
 
   useEffect(() => {
@@ -116,6 +119,15 @@ export default function MainPage() {
       loadNote(path);
     }
   }, [loadNote, checkDirty]);
+
+  const handleRefreshFileTree = useCallback(async () => {
+    setFileTreeError(null);
+    try {
+      await refreshFileTree();
+    } catch {
+      setFileTreeError('Failed to refresh file tree. Please try again.');
+    }
+  }, [refreshFileTree]);
 
   const handleCreateNotebook = useCallback(() => {
     setCreateNotebookOpen(true);
@@ -283,6 +295,45 @@ export default function MainPage() {
         <Divider />
 
         {/* File Tree */}
+        <Box sx={{ px: 1.5, height: 24, flexShrink: 0, display: 'flex', alignItems: 'center', bgcolor: '#f0f0f0' }}>
+          <Tooltip title="Create notebook">
+            <IconButton aria-label="Create notebook" onClick={handleCreateNotebook} size="small" sx={{ width: 24, height: 24 }}>
+              <NewNotebookIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Box sx={{ flexGrow: 1 }} />
+          <Tooltip title="Collapse all notebooks">
+            <span>
+              <IconButton
+                aria-label="Collapse all notebooks"
+                onClick={() => fileTreeRef.current?.collapseNotebooks()}
+                disabled={isLoading || fileItems.length === 0}
+                size="small"
+                sx={{ width: 24, height: 24 }}
+              >
+                <CollapseIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Refresh file tree">
+            <span>
+              <IconButton
+                aria-label="Refresh file tree"
+                onClick={handleRefreshFileTree}
+                disabled={isLoading || isFileTreeRefreshing}
+                size="small"
+                sx={{ width: 24, height: 24 }}
+              >
+                {isFileTreeRefreshing ? <CircularProgress size={18} /> : <RefreshIcon fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+        {fileTreeError && (
+          <Alert severity="error" onClose={() => setFileTreeError(null)} sx={{ mx: 1, mb: 1 }}>
+            {fileTreeError}
+          </Alert>
+        )}
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
@@ -290,6 +341,7 @@ export default function MainPage() {
         ) : (
           <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
             <FileTree
+              ref={fileTreeRef}
               items={fileItems}
               notebooks={notebooks}
               currentNotePath={currentNote?.path}

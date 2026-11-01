@@ -97,6 +97,15 @@ export function useFileTree(items: FileItem[]) {
     });
   }, []);
 
+  const collapseNotebooks = useCallback(() => {
+    const notebookIds = new Set(tree.filter(node => node.isNotebook).map(node => node.id));
+    setExpandedIds(prev => {
+      const newIds = prev.filter(id => !notebookIds.has(id));
+      localStorage.setItem(EXPANDED_KEY, JSON.stringify(newIds));
+      return newIds;
+    });
+  }, [tree]);
+
   const expandTo = useCallback((path: string) => {
     const parts = path.split('/');
     const pathsToExpand: string[] = [];
@@ -142,6 +151,7 @@ export function useFileTree(items: FileItem[]) {
     handleExpandedChange,
     handleSelectChange,
     toggleExpand,
+    collapseNotebooks,
     expandTo,
     setSelectedId,
   };

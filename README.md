@@ -11,6 +11,8 @@ Self-hosted note-taking app based on Markdown. Access anywhere and fully control
 - **Image Upload** — Paste or drag-drop images directly into notes
 - **Remote Sync** — Sync notes to S3 or WebDAV storage
 - **MCP Server** — Built-in [Model Context Protocol](https://modelcontextprotocol.io/) server for AI agent integration
+- **File Tree Refresh** — Use the refresh button above the sidebar file tree to pick up notes and folders created or changed by AI agents without reloading the page or replacing your current editor content
+- **File Tree Toolbar** — Create a notebook from the left-hand button, or collapse all notebook roots with the button beside refresh; subfolder expansion is remembered when you reopen a notebook
 - **Dark Mode** — Eye-friendly dark theme support
 
 ## Self-Hosting

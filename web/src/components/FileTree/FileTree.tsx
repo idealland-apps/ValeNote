@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useImperativeHandle } from 'react';
 import { useDrag, useDrop, DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
@@ -178,7 +178,12 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
   );
 }
 
+export interface FileTreeHandle {
+  collapseNotebooks: () => void;
+}
+
 export interface FileTreeProps {
+  ref?: React.Ref<FileTreeHandle>;
   items: FileItem[];
   notebooks: Notebook[];
   currentNotePath?: string | null;
@@ -196,6 +201,7 @@ export interface FileTreeProps {
 }
 
 export default function FileTree({
+  ref,
   items,
   notebooks,
   currentNotePath,
@@ -211,7 +217,8 @@ export default function FileTree({
   onNotebookSettings,
   clipboardPath,
 }: FileTreeProps) {
-  const { tree, expandedIds, handleExpandedChange, expandTo } = useFileTree(items);
+  const { tree, expandedIds, handleExpandedChange, expandTo, collapseNotebooks } = useFileTree(items);
+  useImperativeHandle(ref, () => ({ collapseNotebooks }), [collapseNotebooks]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: TreeNode | null } | null>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -280,6 +287,7 @@ export default function FileTree({
             onExpandedItemsChange={handleExpandedChange}
             sx={{
               p: 1,
+              pt: 0.5,
               '& .MuiTreeItem-content[data-selected]': {
                 bgcolor: 'transparent',
               },

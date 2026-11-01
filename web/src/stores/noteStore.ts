@@ -40,12 +40,14 @@ interface NoteState {
   fileItems: FileItem[];
   currentNote: Note | null;
   isLoading: boolean;
+  isFileTreeRefreshing: boolean;
   isNoteLoading: boolean;
   dirtyChecker: (() => boolean) | null;
   loadNoteAbortController: AbortController | null;
   loadNotebooks: () => Promise<void>;
   loadNotes: (notebook?: string) => Promise<void>;
   loadFiles: (notebook?: string) => Promise<void>;
+  refreshFileTree: () => Promise<void>;
   loadNote: (path: string) => Promise<void>;
   createNote: (data: { path: string; title?: string; content: string; tags?: string[] }) => Promise<Note>;
   updateNote: (path: string, content: string, append?: boolean) => Promise<void>;
@@ -68,6 +70,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   fileItems: [],
   currentNote: null,
   isLoading: false,
+  isFileTreeRefreshing: false,
   isNoteLoading: false,
   dirtyChecker: null,
   loadNoteAbortController: null,
@@ -94,6 +97,20 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       set({ fileItems: data || [] });
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  refreshFileTree: async () => {
+    if (get().isFileTreeRefreshing) return;
+    set({ isFileTreeRefreshing: true });
+    try {
+      const [notebooks, files] = await Promise.all([
+        notebookApi.list(),
+        fileApi.list(undefined, true),
+      ]);
+      set({ notebooks: notebooks.data, fileItems: files.data || [] });
+    } finally {
+      set({ isFileTreeRefreshing: false });
     }
   },
 
