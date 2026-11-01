@@ -115,6 +115,37 @@ func (f *searchFixture) query(t *testing.T, transport, query, notebook string) [
 	return notes
 }
 
+func TestSearchHandlersRecordErrors(t *testing.T) {
+	f := newSearchFixture(t)
+	h := NewNoteHandler(f.notes, f.search)
+	for _, tc := range []struct {
+		name    string
+		handler gin.HandlerFunc
+	}{
+		{"combined", h.SearchNotes},
+		{"fulltext", h.SearchFulltext},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			var recorded string
+			router.Use(func(c *gin.Context) {
+				c.Next()
+				recorded = c.Errors.String()
+			})
+			router.GET("/search", tc.handler)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest("GET", "/search?q=needle&notebook=..", nil))
+			if w.Code != 500 || w.Body.String() != `{"error":"search failed"}` {
+				t.Fatalf("unexpected failure response: %d %s", w.Code, w.Body.String())
+			}
+			if !strings.Contains(recorded, "invalid notebook scope") {
+				t.Fatalf("underlying error not recorded for logging: %q", recorded)
+			}
+		})
+	}
+}
+
 func TestSearchReflectsUpdateWithUnchangedFileStamp(t *testing.T) {
 	f := newSearchFixture(t)
 	f.notebook(t, "book", true)

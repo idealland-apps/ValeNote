@@ -108,6 +108,7 @@ function mountDialog(t) {
     tick(ms = 300) { t.mock.timers.tick(ms); render(); },
     async settle() { await new Promise(resolve => setImmediate(resolve)); render(); },
     titles() { return nodes('ListItemText').map(node => node.props.primary); },
+    errors() { return nodes('Alert').map(node => node.props.children); },
     loading() { return nodes('TextField')[0].props.slotProps.input.endAdornment !== null; },
     mutations() { return mutations; },
   };
@@ -289,4 +290,34 @@ test('only the final debounced query runs, and current failures clear loading', 
   await dialog.settle();
   assert.equal(dialog.loading(), false);
   assert.equal(dialog.titles().length, 0);
+  assert.deepEqual(dialog.errors(), ['Failed to search notes. Please try again.']);
 });
+
+test('a successful empty search is not shown as a failure', async (t) => {
+  const dialog = mountDialog(t);
+  dialog.change('missing');
+  dialog.tick();
+  dialog.requests[0].resolve({ data: [] });
+  await dialog.settle();
+  assert.equal(dialog.loading(), false);
+  assert.equal(dialog.titles().length, 0);
+  assert.deepEqual(dialog.errors(), []);
+});
+
+for (const [name, reset] of [
+  ['new query', dialog => dialog.change('second')],
+  ['cleared query', dialog => dialog.change('')],
+  ['file tab', dialog => dialog.tab(1)],
+  ['reopened dialog', dialog => { dialog.open(false); dialog.open(true); }],
+]) {
+  test(`${name} clears the previous search error`, async (t) => {
+    const dialog = mountDialog(t);
+    dialog.change('first');
+    dialog.tick();
+    dialog.requests[0].reject(new Error('current failure'));
+    await dialog.settle();
+    assert.equal(dialog.errors().length, 1);
+    reset(dialog);
+    assert.deepEqual(dialog.errors(), []);
+  });
+}

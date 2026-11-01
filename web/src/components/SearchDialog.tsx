@@ -12,6 +12,7 @@ import {
   Box,
   InputAdornment,
   CircularProgress,
+  Alert,
 } from '@mui/material';
 import { Search as SearchIcon, Description as FileIcon, TextSnippet as ContentIcon } from '@mui/icons-material';
 import { noteApi, type SearchResult, type FileItem } from '../services/api';
@@ -41,6 +42,7 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
   const [query, setQuery] = useState('');
   const [fulltextResults, setFulltextResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -48,17 +50,22 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
       setQuery('');
       setFulltextResults([]);
       setLoading(false);
+      setError('');
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
 
   const searchFulltext = useCallback(async (q: string, signal: AbortSignal) => {
     setLoading(true);
+    setError('');
     try {
       const res = await noteApi.searchFulltext(q.trim(), undefined, undefined, signal);
       if (!signal.aborted) setFulltextResults(res.data || []);
     } catch {
-      if (!signal.aborted) setFulltextResults([]);
+      if (!signal.aborted) {
+        setFulltextResults([]);
+        setError('Failed to search notes. Please try again.');
+      }
     } finally {
       if (!signal.aborted) setLoading(false);
     }
@@ -81,6 +88,7 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
   const resetFulltext = () => {
     setFulltextResults([]);
     setLoading(false);
+    setError('');
   };
 
   const filteredFiles = query && fileItems
@@ -164,7 +172,9 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
 
         <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
           {tab === 0 ? (
-            query ? (
+            error ? (
+              <Alert severity="error" sx={{ m: 1.5 }}>{error}</Alert>
+            ) : query ? (
               fulltextResults.length > 0 ? (
                 <List dense disablePadding>
                   {fulltextResults.map((result) => (

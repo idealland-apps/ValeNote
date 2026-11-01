@@ -231,12 +231,17 @@ func (s *SearchService) SearchContext(ctx context.Context, opts SearchOptions) (
 				return nil
 			}
 			rel := filepath.Join(scope, filepath.FromSlash(path))
-			info, err := d.Info()
+			// Go 1.24 DirEntry.Info can resolve an OpenRoot entry against the
+			// working directory. Stat through the scoped handle instead.
+			info, err := scoped.Lstat(path)
 			if os.IsNotExist(err) {
 				return nil
 			}
 			if err != nil {
 				return err
+			}
+			if !info.Mode().IsRegular() {
+				return nil
 			}
 			order := nextOrder
 			nextOrder++

@@ -226,6 +226,7 @@ func (h *NoteHandler) SearchNotes(c *gin.Context) {
 
 	notes, err := h.noteService.SearchContext(c.Request.Context(), query, notebook, tags, limit)
 	if err != nil {
+		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
 		return
 	}
@@ -244,6 +245,7 @@ func (h *NoteHandler) SearchFulltext(c *gin.Context) {
 		Query: query, Notebook: notebook, Limit: limit, FulltextOnly: true,
 	})
 	if err != nil {
+		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
 		return
 	}

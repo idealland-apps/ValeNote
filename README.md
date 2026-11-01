@@ -122,6 +122,7 @@ Search scans Markdown directly; no full-text index, external search service or `
 - Files are validated against size and modification time on each search. Application edits, moves, copies, deletes and version restores invalidate affected paths immediately. External edits are detected by file stamps; same-size external edits that preserve timestamps are refreshed after an absolute five-minute cache age. Searches never extend that age. New and deleted files are discovered by scoped directory walks.
 - Once enough highest-priority matches are found, scanning stops after a bounded queued prefix; earlier in-flight files are drained before selecting the first results. Combined search still checks for later metadata matches when only body matches have filled the limit. Snippets are generated only for admitted candidates.
 - Attachment directories and symlinks are excluded. Unicode snippets preserve UTF-8 boundaries. HTTP cancellation propagates to search, and the UI aborts/discards obsolete requests. In-flight filesystem reads cannot necessarily be interrupted, but cancellation stops subsequent work.
+- File metadata is read through the scoped directory handle, including on Go 1.24, rather than resolving directory-entry paths against the working directory. Search failures are logged by the HTTP handlers and shown in the web dialog instead of being displayed as an empty result.
 
 ### Verification
 
@@ -143,7 +144,7 @@ npm ci
 python3 scripts/search_smoke.py /tmp/valenote --browser
 ```
 
-The smoke server uses the application's existing all-interface binding on a temporary port and disposable credentials/data; run it only on a trusted development host. The browser race test deliberately supplies delayed synthetic search responses to verify stale-result protection.
+The smoke server uses the application's existing all-interface binding on a temporary port and disposable credentials/data; run it only on a trusted development host. The browser test opens a real search result and deliberately supplies delayed and failed synthetic search responses to verify stale-result protection and error display.
 
 ### Reproducible search microbenchmark
 

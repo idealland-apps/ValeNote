@@ -32,6 +32,45 @@ func putNote(t testing.TB, s *SearchService, path, text string) {
 		t.Fatal(err)
 	}
 }
+func TestSearchScopedHandlesWithAbsoluteAndRelativeRoots(t *testing.T) {
+	for _, relative := range []bool{false, true} {
+		for _, fulltext := range []bool{false, true} {
+			for _, scope := range []string{"library", "notebook", "subdirectory", "allowlist"} {
+				t.Run(fmt.Sprintf("relative=%v/fulltext=%v/%s", relative, fulltext, scope), func(t *testing.T) {
+					s := searchFixture(t)
+					putNote(t, s, "book/sub/note.md", "# Scoped note\nneedle")
+					if relative {
+						cwd, err := os.Getwd()
+						if err != nil {
+							t.Fatal(err)
+						}
+						s.cfg.Notes.RootPath, err = filepath.Rel(cwd, s.cfg.Notes.RootPath)
+						if err != nil {
+							t.Fatal(err)
+						}
+					}
+					opts := SearchOptions{Query: "needle", FulltextOnly: fulltext}
+					switch scope {
+					case "notebook":
+						opts.Notebook = "book"
+					case "subdirectory":
+						opts.Notebook = "book/sub"
+					case "allowlist":
+						opts.AllowedNotebooks = []string{"book"}
+					}
+					got, err := s.SearchContext(context.Background(), opts)
+					if err != nil || len(got) != 1 {
+						t.Fatalf("scoped handle lost note: %#v, %v", got, err)
+					}
+					if got[0].Path != "book/sub/note.md" || got[0].Title != "Scoped note" || !strings.Contains(got[0].Snippet, "needle") {
+						t.Fatalf("incorrect scoped result: %#v", got[0])
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestSearchReflectsFilesystemChanges(t *testing.T) {
 	s := searchFixture(t)
 	putNote(t, s, "book/old.md", "needle")

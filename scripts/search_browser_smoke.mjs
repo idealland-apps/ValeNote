@@ -20,6 +20,12 @@ try {
   const finished = new Promise(resolve => { oldFinished = resolve; });
   await page.route('**/api/v1/search/fulltext?**', async route => {
     const q = new URL(route.request().url()).searchParams.get('q');
+    if (q === 'ui-failure') {
+      return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'search failed' }) });
+    }
+    if (q === 'ui-empty') {
+      return route.fulfill({ contentType: 'application/json', body: '[]' });
+    }
     if (q !== 'ui-old' && q !== 'ui-new') return route.continue();
     if (q === 'ui-old') { oldStarted(); await released; }
     const response = [{ path: `z_allowed/${q}.md`, title: q === 'ui-new' ? 'Newest result fixture' : 'Obsolete result fixture', snippet: q, notebook: 'z_allowed' }];
@@ -35,6 +41,10 @@ try {
   await page.goto(base + '/app');
   await page.getByPlaceholder('Search...', { exact: true }).click();
   const input = page.getByPlaceholder('Search note content...');
+  await input.fill('needle body');
+  await page.getByRole('button').filter({ hasText: 'renamed_book/result.md' }).click();
+  await page.getByRole('heading', { name: 'needle', exact: true }).waitFor();
+  await page.getByPlaceholder('Search...', { exact: true }).click();
   await input.fill('ui-old');
   await Promise.race([started, new Promise((_, reject) => setTimeout(() => reject(new Error('search did not start')), 5000))]);
   await input.fill('ui-new');
@@ -46,6 +56,12 @@ try {
   await input.fill('');
   await page.getByText('Type to search note content', { exact: true }).waitFor();
   assert.equal(await page.getByText('Newest result fixture', { exact: true }).count(), 0);
+  await input.fill('ui-failure');
+  await page.getByRole('alert').filter({ hasText: 'Failed to search notes. Please try again.' }).waitFor();
+  assert.equal(await page.getByText('No results found', { exact: true }).count(), 0);
+  await input.fill('ui-empty');
+  await page.getByText('No results found', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('alert').count(), 0);
   await page.getByRole('tab', { name: 'File', exact: true }).click();
   await page.getByPlaceholder('Search files and folders...').fill('result');
   await page.getByRole('tab', { name: 'Full-text', exact: true }).click();
@@ -53,7 +69,7 @@ try {
   await page.getByPlaceholder('Search...', { exact: true }).click();
   assert.equal(await page.getByPlaceholder('Search note content...').inputValue(), '');
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ status: 'PASS', checks: ['real Chromium UI: obsolete search cannot replace newest result', 'clear/tab/close/reopen', 'no page errors'] }));
+  console.log(JSON.stringify({ status: 'PASS', checks: ['real backend search result opens note', 'real Chromium UI: obsolete search cannot replace newest result', 'search failure distinguished from empty results', 'clear/tab/close/reopen', 'no page errors'] }));
 } finally {
   await browser.close();
 }
