@@ -72,6 +72,17 @@ Please change the default password after first login via Settings > User Managem
 | `VALENOTE_NOTES_PATH` | `/notes` | Markdown notes directory |
 | `VALENOTE_SECRET_KEY` | - | JWT signing secret (required in production) |
 
+## Publishing Docker images
+
+Use **Actions → Publish Docker → Run workflow** on `main`, enter a new version
+such as `1.3.0` (without `v`), and choose whether to update `latest`.
+Publishing runs only through `workflow_dispatch`, never on a code push.
+
+The repository needs `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` Actions secrets.
+The workflow builds `linux/amd64`, runs frontend tests/lint/build and Go tests/vet
+inside the build stages, then checks the running container's version and PWA
+assets before pushing to `bytetopia/valenote`. Existing version tags are rejected.
+
 ## Local Development
 
 ### Requirements
@@ -154,8 +165,8 @@ go test -race ./...
 go vet ./...
 go build -o /tmp/valenote ./cmd/server
 
-# Frontend build and deterministic search lifecycle regressions
-(cd web && npm ci && npm run build && node --test src/components/SearchDialog.test.mjs)
+# Frontend lifecycle/PWA regressions, lint, typecheck and production build
+(cd web && npm ci && npm test && npm run lint -- --max-warnings 0 && npm run build)
 
 # Real HTTP/MCP search against disposable notes/database; server is stopped afterwards
 python3 scripts/search_smoke.py /tmp/valenote

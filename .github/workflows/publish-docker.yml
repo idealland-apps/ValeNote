@@ -1,0 +1,75 @@
+name: Publish Docker
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New image version, for example 1.3.0 (without v)'
+        required: true
+        type: string
+      latest:
+        description: 'Also update the latest tag'
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: valenote-docker-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ inputs.version }}
+      IMAGE: bytetopia/valenote
+      TAG_LATEST: ${{ inputs.latest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate new version
+        shell: bash
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { printf 'Invalid version\n' >&2; exit 1; }
+          status=$(curl --silent --show-error --retry 3 --output /tmp/tag.json --write-out '%{http_code}' \
+            "https://hub.docker.com/v2/repositories/$IMAGE/tags/$VERSION/")
+          [[ "$status" == 404 ]] || { printf 'Version exists or registry lookup failed (HTTP %s)\n' "$status" >&2; exit 1; }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: bytetopia/valenote:${{ inputs.version }}
+          build-args: VERSION=${{ inputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/idealland-apps/ValeNote
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ inputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check release container
+        shell: bash
+        run: |
+          docker run --detach --name valenote-release-smoke \
+            --publish 127.0.0.1:8080:8080 --tmpfs /data --tmpfs /notes "$IMAGE:$VERSION"
+          python3 scripts/release_smoke.py http://127.0.0.1:8080 "$VERSION"
+      - name: Publish tested image
+        shell: bash
+        run: |
+          docker push "$IMAGE:$VERSION"
+          if [[ "$TAG_LATEST" == true ]]; then
+            docker tag "$IMAGE:$VERSION" "$IMAGE:latest"
+            docker push "$IMAGE:latest"
+          fi
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+      - name: Remove test container
+        if: always()
+        run: docker rm --force valenote-release-smoke || true

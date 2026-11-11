@@ -1,5 +1,5 @@
 # Build stage for frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ENV HTTP_PROXY=${HTTP_PROXY}
@@ -8,7 +8,7 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
-RUN npm run build
+RUN npm test && npm run lint -- --max-warnings 0 && npm run build
 
 # Build stage for backend
 FROM golang:1.24-alpine AS backend-builder
@@ -24,7 +24,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux go build -o valenote ./cmd/server
+RUN go test ./... && go vet ./... && CGO_ENABLED=1 GOOS=linux go build -o valenote ./cmd/server
 RUN echo -n "$VERSION" > version.txt
 
 # Production stage
