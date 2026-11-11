@@ -112,6 +112,27 @@ go build -o valenote ./cmd/server
 ./valenote
 ```
 
+## Install as a desktop app
+
+Open your HTTPS ValeNote site in Chrome or Edge and use the address-bar install
+icon (or the browser menu's install-app command). Launching the installed app
+opens ValeNote in its own window without the normal address bar or tabs. You can
+pin it to the Windows taskbar/Start menu or the macOS Dock.
+
+Installation also works on `localhost` for development, but not on plain HTTP
+LAN addresses. The browser controls when an install prompt is offered. On macOS,
+Safari 17+ also provides **File > Add to Dock**.
+
+This is an online-only app: installation does not add offline editing, caching,
+or synchronization. It uses the bundled ValeNote name and app icons; changing
+the site's custom name or favicon does not change those installation assets.
+
+Verify the installation metadata and icon dimensions:
+
+```bash
+(cd web && node --test tests/pwa.test.mjs)
+```
+
 ## Search behavior
 
 Search scans Markdown directly; no full-text index, external search service or `rg` binary is required.
