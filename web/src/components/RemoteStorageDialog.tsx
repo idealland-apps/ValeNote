@@ -44,7 +44,7 @@ interface Props {
 
 export default function RemoteStorageDialog({ open, onClose }: Props) {
   const [storages, setStorages] = useState<RemoteStorage[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(open);
   const [editing, setEditing] = useState<RemoteStorage | null>(null);
   const [testing, setTesting] = useState<number | null>(null);
   const [syncing, setSyncing] = useState<number | null>(null);
@@ -77,10 +77,27 @@ export default function RemoteStorageDialog({ open, onClose }: Props) {
     }
   };
 
+  const [previousOpen, setPreviousOpen] = useState(open);
+  if (previousOpen !== open) {
+    setPreviousOpen(open);
+    if (open) setLoading(true);
+  }
+
   useEffect(() => {
-    if (open) {
-      loadStorages();
+    if (!open) return;
+    let active = true;
+    async function fetchStorages() {
+      try {
+        const { data } = await api.get<RemoteStorage[]>('/settings/remote-storage');
+        if (active) setStorages(data || []);
+      } catch {
+        if (active) setError('Failed to load storages');
+      } finally {
+        if (active) setLoading(false);
+      }
     }
+    void fetchStorages();
+    return () => { active = false; };
   }, [open]);
 
   const loadStorages = async () => {

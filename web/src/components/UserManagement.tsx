@@ -16,35 +16,21 @@ interface UserDialogProps {
   onSave: () => void;
 }
 
-function UserDialog({ open, user, currentUserId, onClose, onSave }: UserDialogProps) {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+function UserDialog(props: UserDialogProps) {
+  return <UserForm key={JSON.stringify([props.open, props.user])} {...props} />;
+}
+
+function UserForm({ open, user, currentUserId, onClose, onSave }: UserDialogProps) {
+  const [username, setUsername] = useState(user?.username || '');
+  const [email, setEmail] = useState(user?.email || '');
   const [password, setPassword] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(user?.is_admin || false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [showAdminWarning, setShowAdminWarning] = useState(false);
 
   const isEditingSelf = user?.id === currentUserId;
   const isRemovingOwnAdmin = isEditingSelf && user?.is_admin && !isAdmin;
-
-  useEffect(() => {
-    if (open) {
-      if (user) {
-        setUsername(user.username);
-        setEmail(user.email || '');
-        setIsAdmin(user.is_admin);
-        setPassword('');
-      } else {
-        setUsername('');
-        setEmail('');
-        setPassword('');
-        setIsAdmin(false);
-      }
-      setError('');
-      setShowAdminWarning(false);
-    }
-  }, [open, user]);
 
   const handleSubmit = async () => {
     setError('');
@@ -186,7 +172,19 @@ export default function UserManagement() {
   };
 
   useEffect(() => {
-    loadUsers();
+    let active = true;
+    async function fetchUsers() {
+      try {
+        const { data } = await userApi.list();
+        if (active) setUsers(data);
+      } catch {
+        if (active) setError('Failed to load users');
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    void fetchUsers();
+    return () => { active = false; };
   }, []);
 
   const handleEdit = (user: User) => {

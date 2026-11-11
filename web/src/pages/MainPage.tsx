@@ -40,9 +40,11 @@ export default function MainPage() {
   const [drawerWidth, setDrawerWidth] = useState(getStoredDrawerWidth);
   const [isResizing, setIsResizing] = useState(false);
 
-  useEffect(() => {
+  const [previousMobile, setPreviousMobile] = useState(isMobile);
+  if (previousMobile !== isMobile) {
+    setPreviousMobile(isMobile);
     setDrawerOpen(!isMobile);
-  }, [isMobile]);
+  }
 
   const handleMouseDown = useCallback(() => {
     setIsResizing(true);
@@ -101,6 +103,8 @@ export default function MainPage() {
   }, [loadNotebooks, loadFiles]);
 
   useEffect(() => {
+    // Restore once on mount, not again whenever a note is closed or deleted.
+    const { currentNote, loadNote } = useNoteStore.getState();
     const savedPath = getSavedNotePath();
     if (savedPath && !currentNote) {
       loadNote(savedPath).catch(() => {

@@ -9,7 +9,11 @@ interface Props {
   onCreated: () => void;
 }
 
-export default function CreateNotebookDialog({ open, onClose, onCreated }: Props) {
+export default function CreateNotebookDialog(props: Props) {
+  return <CreateNotebookDialogForm key={String(props.open)} {...props} />;
+}
+
+function CreateNotebookDialogForm({ open, onClose, onCreated }: Props) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,9 +22,6 @@ export default function CreateNotebookDialog({ open, onClose, onCreated }: Props
 
   useEffect(() => {
     if (open) {
-      setName('');
-      setDescription('');
-      setError('');
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [open]);

@@ -9,15 +9,17 @@ interface CreateFolderDialogProps {
   parentPath: string;
 }
 
-export default function CreateFolderDialog({ open, onClose, onConfirm, parentPath }: CreateFolderDialogProps) {
+export default function CreateFolderDialog(props: CreateFolderDialogProps) {
+  return <CreateFolderDialogForm key={String(props.open)} {...props} />;
+}
+
+function CreateFolderDialogForm({ open, onClose, onConfirm, parentPath }: CreateFolderDialogProps) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
-      setName('');
-      setError('');
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [open]);
@@ -28,7 +30,7 @@ export default function CreateFolderDialog({ open, onClose, onConfirm, parentPat
       setError('Folder name is required');
       return;
     }
-    if (/[\/\\:*?"<>|]/.test(trimmed)) {
+    if (/[/\\:*?"<>|]/.test(trimmed)) {
       setError('Invalid characters in folder name');
       return;
     }

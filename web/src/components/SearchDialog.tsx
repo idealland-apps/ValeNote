@@ -44,15 +44,23 @@ export default function SearchDialog({ open, onClose, onSelect, fileItems }: Sea
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [wasOpen, setWasOpen] = useState(open);
 
-  useEffect(() => {
+  // Reset before rendering a reopened dialog, rather than after committing it.
+  if (wasOpen !== open) {
+    setWasOpen(open);
     if (open) {
       setQuery('');
       setFulltextResults([]);
       setLoading(false);
       setError('');
-      setTimeout(() => inputRef.current?.focus(), 100);
     }
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const timeout = setTimeout(() => inputRef.current?.focus(), 100);
+    return () => clearTimeout(timeout);
   }, [open]);
 
   const searchFulltext = useCallback(async (q: string, signal: AbortSignal) => {

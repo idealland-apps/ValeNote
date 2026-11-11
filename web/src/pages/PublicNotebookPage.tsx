@@ -64,7 +64,12 @@ function renderTreeItem(node: PublicTreeItem): React.ReactNode {
 }
 
 export default function PublicNotebookPage() {
-  const { notebook, '*': subPath } = useParams<{ notebook: string; '*': string }>();
+  const { notebook } = useParams<{ notebook: string }>();
+  return <PublicNotebook key={notebook} notebook={notebook} />;
+}
+
+function PublicNotebook({ notebook }: { notebook: string | undefined }) {
+  const { '*': subPath } = useParams<{ '*': string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { siteName, showPoweredBy } = useSiteStore();
@@ -73,34 +78,49 @@ export default function PublicNotebookPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
+  const [previousIsMobile, setPreviousIsMobile] = useState(isMobile);
   const [tree, setTree] = useState<PublicTreeItem | null>(null);
-  const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
+  const urlPath = subPath ? `${notebook}/${subPath}` : notebook;
+  const node = tree && urlPath ? resolveUrlPath(tree, urlPath) : null;
+  const selectedPath = tree ? (subPath ? node?.path : notebook) : undefined;
+  const [previousSelectedPath, setPreviousSelectedPath] = useState(selectedPath);
   const [content, setContent] = useState<{ type: 'note' | 'folder'; data: Note | Note[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
-  useEffect(() => {
+  // Expand ancestors only when selection changes, so manual collapses survive rerenders.
+  if (selectedPath !== previousSelectedPath) {
+    setPreviousSelectedPath(selectedPath);
+    if (selectedPath) {
+      const pathParts = selectedPath.split('/');
+      const pathsToExpand = pathParts.slice(0, -1).map((_, i) => pathParts.slice(0, i + 1).join('/'));
+      setExpandedItems(prev => [...new Set([...prev, ...pathsToExpand])]);
+    }
+  }
+
+  if (previousIsMobile !== isMobile) {
+    setPreviousIsMobile(isMobile);
     setDrawerOpen(!isMobile);
-  }, [isMobile]);
+  }
 
   useEffect(() => {
     if (!notebook) return;
-
-    setLoading(true);
-    setError(null);
+    let cancelled = false;
 
     publicApi.getTree(notebook)
       .then(res => {
+        if (cancelled) return;
         setTree(res.data);
         setExpandedItems([res.data.path]);
       })
       .catch(() => {
-        setError('Notebook not found or not public');
+        if (!cancelled) setError('Notebook not found or not public');
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       });
+    return () => { cancelled = true; };
   }, [notebook]);
 
   useEffect(() => {
@@ -115,47 +135,37 @@ export default function PublicNotebookPage() {
 
   useEffect(() => {
     if (!notebook || !tree) return;
+    let cancelled = false;
 
-    const urlPath = subPath ? `${notebook}/${subPath}` : notebook;
-
-    if (urlPath === notebook || !subPath) {
-      setSelectedPath(notebook);
-      publicApi.getFolderNotes(notebook)
-        .then(res => setContent({ type: 'folder', data: res.data }))
-        .catch(() => setContent(null));
-      return;
-    }
-
-    const node = resolveUrlPath(tree, urlPath);
-
-    if (node) {
-      setSelectedPath(node.path);
-      const pathParts = node.path.split('/');
-      const pathsToExpand = pathParts.slice(0, -1).map((_, i) => pathParts.slice(0, i + 1).join('/'));
-      setExpandedItems(prev => [...new Set([...prev, ...pathsToExpand])]);
-
-      if (node.type === 'file') {
-        const notePath = node.path.slice(notebook.length + 1);
-        publicApi.getNote(notebook, notePath)
-          .then(res => setContent({ type: 'note', data: res.data }))
-          .catch(() => setContent(null));
-      } else {
-        const folderPath = node.path.slice(notebook.length + 1);
-        publicApi.getFolderNotes(notebook, folderPath)
-          .then(res => setContent({ type: 'folder', data: res.data }))
-          .catch(() => setContent(null));
+    async function loadContent(notebook: string): Promise<typeof content> {
+      if (!subPath) {
+        const res = await publicApi.getFolderNotes(notebook);
+        return { type: 'folder', data: res.data };
       }
-    } else {
-      setSelectedPath(undefined);
-      publicApi.getFolderNotes(notebook, subPath)
-        .then(res => setContent({ type: 'folder', data: res.data }))
-        .catch(() => {
-          publicApi.getNote(notebook, subPath)
-            .then(res => setContent({ type: 'note', data: res.data }))
-            .catch(() => setContent(null));
-        });
+      if (node) {
+        const relativePath = node.path.slice(notebook.length + 1);
+        if (node.type === 'file') {
+          const res = await publicApi.getNote(notebook, relativePath);
+          return { type: 'note', data: res.data };
+        }
+        const res = await publicApi.getFolderNotes(notebook, relativePath);
+        return { type: 'folder', data: res.data };
+      }
+      try {
+        const res = await publicApi.getFolderNotes(notebook, subPath);
+        return { type: 'folder', data: res.data };
+      } catch {
+        if (cancelled) return null;
+        const res = await publicApi.getNote(notebook, subPath);
+        return { type: 'note', data: res.data };
+      }
     }
-  }, [notebook, subPath, tree]);
+
+    loadContent(notebook)
+      .then(nextContent => { if (!cancelled) setContent(nextContent); })
+      .catch(() => { if (!cancelled) setContent(null); });
+    return () => { cancelled = true; };
+  }, [notebook, subPath, tree, node]);
 
   const handleItemSelect = useCallback((_event: React.SyntheticEvent | null, itemId: string | null) => {
     if (!itemId || typeof itemId !== 'string' || !notebook || !tree) return;

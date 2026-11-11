@@ -24,21 +24,20 @@ export default function TagPanel({ onTagClick }: Props) {
   const { searchNotes } = useNoteStore();
 
   useEffect(() => {
-    loadTags();
-  }, []);
-
-  const loadTags = async () => {
-    setLoading(true);
-    try {
-      const res = await tagApi.list();
-      const sorted = res.data.sort((a, b) => b.count - a.count);
-      setTags(sorted);
-    } catch (err) {
-      console.error('Failed to load tags:', err);
-    } finally {
-      setLoading(false);
+    let active = true;
+    async function fetchTags() {
+      try {
+        const res = await tagApi.list();
+        if (active) setTags(res.data.sort((a, b) => b.count - a.count));
+      } catch (err) {
+        console.error('Failed to load tags:', err);
+      } finally {
+        if (active) setLoading(false);
+      }
     }
-  };
+    void fetchTags();
+    return () => { active = false; };
+  }, []);
 
   const handleTagClick = (tag: string) => {
     if (selectedTag === tag) {

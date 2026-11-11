@@ -20,17 +20,23 @@ interface Props {
 
 export default function BacklinksPanel({ notePath, onNavigate }: Props) {
   const [backlinks, setBacklinks] = useState<Backlink[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!notePath);
+  const [previousPath, setPreviousPath] = useState(notePath);
   const [expanded, setExpanded] = useState(true);
+
+  if (previousPath !== notePath) {
+    setPreviousPath(notePath);
+    setLoading(!!notePath);
+  }
 
   useEffect(() => {
     if (!notePath) return;
-
-    setLoading(true);
+    let active = true;
     api.get<Backlink[]>(`/backlinks/${encodePath(notePath)}`)
-      .then(({ data }) => setBacklinks(data || []))
-      .catch(() => setBacklinks([]))
-      .finally(() => setLoading(false));
+      .then(({ data }) => { if (active) setBacklinks(data || []); })
+      .catch(() => { if (active) setBacklinks([]); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [notePath]);
 
   if (backlinks.length === 0 && !loading) {

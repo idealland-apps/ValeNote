@@ -80,7 +80,6 @@ export function useFileTree(items: FileItem[]) {
 
   const handleExpandedChange = useCallback((_event: React.SyntheticEvent | null, nodeIds: string[]) => {
     setExpandedIds(nodeIds);
-    localStorage.setItem(EXPANDED_KEY, JSON.stringify(nodeIds));
   }, []);
 
   const handleSelectChange = useCallback((_event: React.SyntheticEvent | null, nodeId: string | null) => {
@@ -92,7 +91,6 @@ export function useFileTree(items: FileItem[]) {
       const newIds = prev.includes(nodeId)
         ? prev.filter(id => id !== nodeId)
         : [...prev, nodeId];
-      localStorage.setItem(EXPANDED_KEY, JSON.stringify(newIds));
       return newIds;
     });
   }, []);
@@ -101,7 +99,6 @@ export function useFileTree(items: FileItem[]) {
     const notebookIds = new Set(tree.filter(node => node.isNotebook).map(node => node.id));
     setExpandedIds(prev => {
       const newIds = prev.filter(id => !notebookIds.has(id));
-      localStorage.setItem(EXPANDED_KEY, JSON.stringify(newIds));
       return newIds;
     });
   }, [tree]);
@@ -116,33 +113,33 @@ export function useFileTree(items: FileItem[]) {
     }
     setExpandedIds(prev => {
       const newIds = [...new Set([...prev, ...pathsToExpand])];
-      localStorage.setItem(EXPANDED_KEY, JSON.stringify(newIds));
       return newIds;
     });
   }, []);
 
-  useEffect(() => {
-    if (items.length === 0) return;
-
-    const folderPaths = new Set<string>();
-    for (const item of items) {
-      const parts = item.path.split('/');
-      let current = '';
-      for (let i = 0; i < parts.length - 1; i++) {
-        current = current ? `${current}/${parts[i]}` : parts[i];
-        folderPaths.add(current);
+  // Reconcile changed input before committing a tree with stale expansion IDs.
+  const [previousItems, setPreviousItems] = useState<FileItem[] | null>(null);
+  if (previousItems !== items) {
+    setPreviousItems(items);
+    if (items.length > 0) {
+      const folderPaths = new Set<string>();
+      for (const item of items) {
+        const parts = item.path.split('/');
+        let current = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+          current = current ? `${current}/${parts[i]}` : parts[i];
+          folderPaths.add(current);
+        }
+        if (item.type === 'folder') folderPaths.add(item.path);
       }
-      if (item.type === 'folder') folderPaths.add(item.path);
+      const filtered = expandedIds.filter(id => folderPaths.has(id));
+      if (filtered.length !== expandedIds.length) setExpandedIds(filtered);
     }
+  }
 
-    setExpandedIds(prev => {
-      const filtered = prev.filter(id => folderPaths.has(id));
-      if (filtered.length !== prev.length) {
-        localStorage.setItem(EXPANDED_KEY, JSON.stringify(filtered));
-      }
-      return filtered;
-    });
-  }, [items]);
+  useEffect(() => {
+    localStorage.setItem(EXPANDED_KEY, JSON.stringify(expandedIds));
+  }, [expandedIds]);
 
   return {
     tree,

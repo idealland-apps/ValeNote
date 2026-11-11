@@ -62,9 +62,13 @@ function isAttachmentReferenced(attachment: AttachmentInfo, markdownContent: str
   return markdownContent.includes(name) || markdownContent.includes(path);
 }
 
-export default function AttachmentManagerDialog({ open, onClose, notePath, markdownContent, onInsert }: Props) {
+export default function AttachmentManagerDialog(props: Props) {
+  return <AttachmentManagerForm key={JSON.stringify([props.open, props.notePath])} {...props} />;
+}
+
+function AttachmentManagerForm({ open, onClose, notePath, markdownContent, onInsert }: Props) {
   const [attachments, setAttachments] = useState<AttachmentInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(open && !!notePath);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
@@ -85,10 +89,21 @@ export default function AttachmentManagerDialog({ open, onClose, notePath, markd
   }, [notePath]);
 
   useEffect(() => {
-    if (open) {
-      loadAttachments();
+    if (!open || !notePath) return;
+    let active = true;
+    async function fetchAttachments() {
+      try {
+        const res = await attachmentApi.list(notePath);
+        if (active) setAttachments(res.data || []);
+      } catch {
+        if (active) setError('Failed to load attachments');
+      } finally {
+        if (active) setLoading(false);
+      }
     }
-  }, [open, loadAttachments]);
+    void fetchAttachments();
+    return () => { active = false; };
+  }, [open, notePath]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

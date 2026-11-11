@@ -41,8 +41,6 @@ interface DraggableTreeItemProps {
 }
 
 function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove, onSelect, onContextMenu }: DraggableTreeItemProps) {
-  const ref = useRef<HTMLLIElement>(null);
-
   const [{ isDragging }, drag] = useDrag({
     type: DRAG_TYPE,
     item: { id: node.id, type: node.type, isNotebook: node.isNotebook },
@@ -73,7 +71,9 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
     }),
   });
 
-  drag(drop(ref));
+  const connectItem = useCallback((element: HTMLLIElement | null) => {
+    drag(drop(element));
+  }, [drag, drop]);
 
   const isExpanded = expandedIds.includes(node.id);
   const notebook = node.isNotebook ? notebooks.find(n => n.name === node.id) : null;
@@ -115,7 +115,7 @@ function DraggableTreeItem({ node, expandedIds, highlightPath, notebooks, onMove
 
   return (
     <TreeItem
-      ref={ref}
+      ref={connectItem}
       itemId={node.id}
       onContextMenu={handleItemContextMenu}
       onClick={handleClick}
@@ -226,12 +226,10 @@ export default function FileTree({
   const normalizedCurrentPath = currentNotePath?.replace(/^\//, '') || null;
   const highlightPath = pendingPath || normalizedCurrentPath;
 
-  // Clear pendingPath when currentNotePath catches up
-  React.useEffect(() => {
-    if (normalizedCurrentPath && pendingPath && normalizedCurrentPath === pendingPath) {
-      setPendingPath(null);
-    }
-  }, [normalizedCurrentPath, pendingPath]);
+  // Reconcile the optimistic highlight before committing the new selection.
+  if (normalizedCurrentPath && pendingPath === normalizedCurrentPath) {
+    setPendingPath(null);
+  }
 
   // Auto-expand to current note
   React.useEffect(() => {

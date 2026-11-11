@@ -31,9 +31,14 @@ export default function ExportDialog({ open, onClose, noteTitle, content, notePa
   const previewRef = useRef<HTMLDivElement>(null);
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);
 
+  const [previousPreview, setPreviousPreview] = useState({ open, content });
+  if (previousPreview.open !== open || previousPreview.content !== content) {
+    setPreviousPreview({ open, content });
+    if (open) setReady(false);
+  }
+
   useEffect(() => {
     if (open) {
-      setReady(false);
       const timer = setTimeout(() => setReady(true), 500);
       return () => clearTimeout(timer);
     }

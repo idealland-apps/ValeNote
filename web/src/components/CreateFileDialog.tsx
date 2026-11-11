@@ -15,7 +15,11 @@ const FILE_TYPES = [
   { ext: '', label: 'Other (specify)' },
 ];
 
-export default function CreateFileDialog({ open, onClose, onConfirm, parentPath }: CreateFileDialogProps) {
+export default function CreateFileDialog(props: CreateFileDialogProps) {
+  return <CreateFileDialogForm key={String(props.open)} {...props} />;
+}
+
+function CreateFileDialogForm({ open, onClose, onConfirm, parentPath }: CreateFileDialogProps) {
   const [name, setName] = useState('');
   const [fileType, setFileType] = useState('.md');
   const [error, setError] = useState('');
@@ -23,9 +27,6 @@ export default function CreateFileDialog({ open, onClose, onConfirm, parentPath 
 
   useEffect(() => {
     if (open) {
-      setName('');
-      setFileType('.md');
-      setError('');
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [open]);
@@ -36,7 +37,7 @@ export default function CreateFileDialog({ open, onClose, onConfirm, parentPath 
       setError('File name is required');
       return;
     }
-    if (/[\/\\:*?"<>|]/.test(trimmed)) {
+    if (/[/\\:*?"<>|]/.test(trimmed)) {
       setError('Invalid characters in file name');
       return;
     }

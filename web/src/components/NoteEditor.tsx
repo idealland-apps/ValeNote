@@ -76,7 +76,16 @@ function ConflictDialog({ open, onClose, detail, onForceOverwrite, onDiscard }: 
 }
 
 export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: Props) {
-  const [content, setContent] = useState(note.content || '');
+  const [draft, setDraft] = useState({ path: note.path, base: note.content || '', content: note.content || '' });
+  // Adjust only when the document snapshot changes. Ordinary renders and local
+  // keystrokes retain the same editor instance and draft.
+  if (draft.path !== note.path || draft.base !== (note.content || '')) {
+    setDraft({ path: note.path, base: note.content || '', content: note.content || '' });
+  }
+  const content = draft.content;
+  const setContent = useCallback((next: string | ((previous: string) => string)) => {
+    setDraft(previous => ({ ...previous, content: typeof next === 'function' ? next(previous.content) : next }));
+  }, []);
   const [mode, setMode] = useState<'edit' | 'preview'>(getInitialMode);
   const [saving, setSaving] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -90,30 +99,21 @@ export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: 
 
   const isDirty = content !== (note.content || '');
 
-  const contentRef = useRef(content);
-  const noteContentRef = useRef(note.content);
-  contentRef.current = content;
-  noteContentRef.current = note.content;
-
   useEffect(() => {
-    setContent(note.content || '');
-  }, [note.path, note.content]);
-
-  useEffect(() => {
-    setDirtyChecker(() => contentRef.current !== (noteContentRef.current || ''));
+    setDirtyChecker(() => isDirty);
     return () => clearDirtyChecker();
-  }, [note.path, setDirtyChecker, clearDirtyChecker]);
+  }, [isDirty, setDirtyChecker, clearDirtyChecker]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (contentRef.current !== (noteContentRef.current || '')) {
+      if (isDirty) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [note.path]);
+  }, [isDirty]);
 
   const showSaveToast = (success: boolean, message: string) => {
     setSaveToast({ show: true, success, message });

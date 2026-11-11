@@ -43,7 +43,7 @@ interface Props {
 
 export default function AgentManagement({ notebooks }: Props) {
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Partial<Agent> | null>(null);
@@ -57,7 +57,19 @@ export default function AgentManagement({ notebooks }: Props) {
   const [helpConfigTab, setHelpConfigTab] = useState(0);
 
   useEffect(() => {
-    loadAgents();
+    let active = true;
+    async function fetchAgents() {
+      try {
+        const { data } = await api.get<Agent[]>('/agents');
+        if (active) setAgents(data || []);
+      } catch {
+        if (active) setError('Failed to load agents');
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    void fetchAgents();
+    return () => { active = false; };
   }, []);
 
   const loadAgents = async () => {

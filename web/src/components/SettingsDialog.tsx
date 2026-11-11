@@ -56,7 +56,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     show_powered_by: true,
     timezone: 'UTC',
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(open);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -64,7 +64,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
   const [reservedPaths, setReservedPaths] = useState<string[]>([]);
   const [appVersion, setAppVersion] = useState('loading...');
   const [faviconUploading, setFaviconUploading] = useState(false);
-  const [faviconKey, setFaviconKey] = useState(Date.now());
+  const [faviconKey, setFaviconKey] = useState(() => Date.now());
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const [colorPickerAnchor, setColorPickerAnchor] = useState<HTMLElement | null>(null);
   const [tempColor, setTempColor] = useState(primaryColor);
@@ -108,39 +108,45 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
     showAutoSaveSuccess();
   }, [setSmartPasteLink, showAutoSaveSuccess]);
 
-  useEffect(() => {
-    if (open) {
-      loadSettings();
-      api.get<{ version: string }>('/version').then(res => {
-        setAppVersion(res.data.version);
-      }).catch(() => {
-        setAppVersion('unknown');
-      });
-    }
-  }, [open]);
+  const [previousOpen, setPreviousOpen] = useState(open);
+  if (previousOpen !== open) {
+    setPreviousOpen(open);
+    if (open) setLoading(true);
+  }
 
-  const loadSettings = async () => {
-    setLoading(true);
-    try {
-      const [pathRes, sysRes] = await Promise.all([
-        api.get<{ path: string; reserved_paths: string[] }>('/settings/public-path'),
-        api.get<SystemSettings>('/settings/system'),
-      ]);
-      setPublicPath(pathRes.data.path);
-      setReservedPaths(pathRes.data.reserved_paths || []);
-      setSystemSettings({
-        version_retention_days: sysRes.data.version_retention_days ?? 30,
-        version_max_count: sysRes.data.version_max_count ?? 100,
-        site_name: sysRes.data.site_name || 'ValeNote',
-        show_powered_by: sysRes.data.show_powered_by ?? true,
-        timezone: sysRes.data.timezone || 'UTC',
-      });
-    } catch {
-      setError('Failed to load settings');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    async function fetchSettings() {
+      try {
+        const [pathRes, sysRes] = await Promise.all([
+          api.get<{ path: string; reserved_paths: string[] }>('/settings/public-path'),
+          api.get<SystemSettings>('/settings/system'),
+        ]);
+        if (!active) return;
+        setPublicPath(pathRes.data.path);
+        setReservedPaths(pathRes.data.reserved_paths || []);
+        setSystemSettings({
+          version_retention_days: sysRes.data.version_retention_days ?? 30,
+          version_max_count: sysRes.data.version_max_count ?? 100,
+          site_name: sysRes.data.site_name || 'ValeNote',
+          show_powered_by: sysRes.data.show_powered_by ?? true,
+          timezone: sysRes.data.timezone || 'UTC',
+        });
+      } catch {
+        if (active) setError('Failed to load settings');
+      } finally {
+        if (active) setLoading(false);
+      }
     }
-  };
+    void fetchSettings();
+    api.get<{ version: string }>('/version').then(res => {
+      if (active) setAppVersion(res.data.version);
+    }).catch(() => {
+      if (active) setAppVersion('unknown');
+    });
+    return () => { active = false; };
+  }, [open]);
 
   const handleSavePublicPath = async () => {
     setSaving(true);

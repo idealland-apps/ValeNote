@@ -1,4 +1,5 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import type { Root, RootContent } from 'hast';
 import { Box, Table, TableBody, TableRow, TableCell, Chip, CircularProgress, IconButton, Tooltip, Typography, useTheme } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
@@ -156,46 +157,37 @@ function CodeBlock({ children, language, isDark }: { children?: React.ReactNode;
 const blobCache = new Map<string, string>();
 
 function AuthenticatedImage({ src, alt }: { src?: string; alt?: string }) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [result, setResult] = useState<{ src: string; url: string | null; error: boolean } | null>(null);
+  const requestPath = useMemo(() => {
+    if (!src) return null;
+    try {
+      return decodeURIComponent(src.replace(/^.*\/api\/v1/, ''));
+    } catch {
+      return null;
+    }
+  }, [src]);
+  const cachedUrl = src ? blobCache.get(src) : undefined;
+  const currentResult = result?.src === src ? result : null;
+  const blobUrl = cachedUrl || currentResult?.url;
+  const error = !src || !requestPath || currentResult?.error;
+  const loading = !!src && !blobUrl && !error;
 
   useEffect(() => {
-    if (!src) {
-      setLoading(false);
-      return;
-    }
-
-    if (blobCache.has(src)) {
-      setBlobUrl(blobCache.get(src)!);
-      setLoading(false);
-      return;
-    }
-
+    if (!src || !requestPath || blobCache.has(src)) return;
     let cancelled = false;
 
-    const apiPath = src.replace(/^.*\/api\/v1/, '');
-    const decodedPath = decodeURIComponent(apiPath);
-    api.get(decodedPath, { responseType: 'blob' })
+    api.get(requestPath, { responseType: 'blob' })
       .then(response => {
         if (cancelled) return;
         const url = URL.createObjectURL(response.data);
         blobCache.set(src, url);
-        setBlobUrl(url);
+        setResult({ src, url, error: false });
       })
       .catch(() => {
-        if (cancelled) return;
-        setError(true);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
+        if (!cancelled) setResult({ src, url: null, error: true });
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [src]);
+    return () => { cancelled = true; };
+  }, [src, requestPath]);
 
   if (loading) {
     return <CircularProgress size={20} />;
@@ -279,38 +271,49 @@ function PublicLink({ href, children }: { href?: string; children?: React.ReactN
   );
 }
 
-let headingCounter = 0;
+// Annotate the parsed tree, not React component invocation order. Each parse
+// owns its counter, including concurrent renderer instances and render retries.
+function headingIndices() {
+  return (tree: Root) => {
+    let index = 0;
+    const visit = (node: Root | RootContent) => {
+      if (node.type === 'element' && /^h[1-6]$/.test(node.tagName)) {
+        node.properties['data-heading-index'] = index++;
+      }
+      if ('children' in node) node.children.forEach(visit);
+    };
+    visit(tree);
+  };
+}
 
 export default function MarkdownRenderer({ content, onTagClick, notePath, isPublic, notebook }: Props) {
   const { frontmatter, body } = useMemo(() => parseFrontmatter(content), [content]);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const resolveUrl = useMemo(() => {
-    if (!notePath) return (url: string) => url;
+  const resolveUrl = useCallback((url: string) => {
+    if (!notePath) return url;
 
     const noteDir = notePath.substring(0, notePath.lastIndexOf('/'));
 
-    return (url: string) => {
-      if (!url.startsWith('./') && !url.startsWith('../')) {
-        return url;
-      }
+    if (!url.startsWith('./') && !url.startsWith('../')) {
+      return url;
+    }
 
-      let resolvedPath: string;
-      if (url.startsWith('./')) {
-        resolvedPath = noteDir ? `${noteDir}/${url.slice(2)}` : url.slice(2);
-      } else {
-        const parts = noteDir.split('/');
-        let relPath = url;
-        while (relPath.startsWith('../')) {
-          parts.pop();
-          relPath = relPath.slice(3);
-        }
-        resolvedPath = parts.length > 0 ? `${parts.join('/')}/${relPath}` : relPath;
+    let resolvedPath: string;
+    if (url.startsWith('./')) {
+      resolvedPath = noteDir ? `${noteDir}/${url.slice(2)}` : url.slice(2);
+    } else {
+      const parts = noteDir.split('/');
+      let relPath = url;
+      while (relPath.startsWith('../')) {
+        parts.pop();
+        relPath = relPath.slice(3);
       }
+      resolvedPath = parts.length > 0 ? `${parts.join('/')}/${relPath}` : relPath;
+    }
 
-      return resolvedPath;
-    };
+    return resolvedPath;
   }, [notePath]);
 
   const transformUrl = useMemo(() => {
@@ -345,16 +348,7 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
     };
   }, [resolveUrl, isPublic, notebook]);
 
-  headingCounter = 0;
-
   const components = useMemo(() => {
-    const createHeading = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') => {
-      return ({ children }: { children?: React.ReactNode }) => {
-        const index = headingCounter++;
-        return <Tag data-heading-index={index}>{children}</Tag>;
-      };
-    };
-
     return {
       code: ({ children, className, ...props }: { children?: React.ReactNode; className?: string }) => {
         const match = /language-(\w+)/.exec(className || '');
@@ -365,12 +359,6 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
         return <CodeBlock language={match?.[1]} isDark={isDark}>{children}</CodeBlock>;
       },
       pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-      h1: createHeading('h1'),
-      h2: createHeading('h2'),
-      h3: createHeading('h3'),
-      h4: createHeading('h4'),
-      h5: createHeading('h5'),
-      h6: createHeading('h6'),
       img: ({ src, alt }: { src?: string; alt?: string }) => {
         const resolvedSrc = src ? transformUrl(src) : undefined;
         return isPublic ? <img src={resolvedSrc} alt={alt} /> : <AuthenticatedImage src={resolvedSrc} alt={alt} />;
@@ -420,6 +408,7 @@ export default function MarkdownRenderer({ content, onTagClick, notePath, isPubl
       )}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[headingIndices]}
         urlTransform={isPublic ? transformUrl : undefined}
         components={components}
       >

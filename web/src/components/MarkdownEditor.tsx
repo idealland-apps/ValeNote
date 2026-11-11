@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, dropCursor } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
@@ -108,6 +108,14 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
     () => [createEditorTheme(isDark, editorFontSize), syntaxHighlighting(createHighlightStyle(isDark))],
     [isDark, editorFontSize]
   );
+
+  // The view lives for the mount; callbacks are refreshed on commit rather than
+  // captured by its one-time CodeMirror listener.
+  const onChangeRef = useRef(onChange);
+  const initialConfigRef = useRef({ value, editorThemeExtension });
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     smartPasteLinkRef.current = smartPasteLink;
@@ -239,7 +247,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
 
     const updateListener = EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        onChange(update.state.doc.toString());
+        onChangeRef.current(update.state.doc.toString());
       }
     });
 
@@ -296,7 +304,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
     });
 
     const state = EditorState.create({
-      doc: value,
+      doc: initialConfigRef.current.value,
       extensions: [
         lineNumbers(),
         highlightActiveLineGutter(),
@@ -311,7 +319,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
           indentWithTab,
         ]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
-        themeCompartment.of(editorThemeExtension),
+        themeCompartment.of(initialConfigRef.current.editorThemeExtension),
         updateListener,
         handlePaste,
         EditorView.lineWrapping,
@@ -329,7 +337,7 @@ export default function MarkdownEditor({ value, onChange, notePath }: Props) {
       view.destroy();
       viewRef.current = null;
     };
-  }, []);
+  }, [handleImageUpload]);
 
   useEffect(() => {
     const view = viewRef.current;

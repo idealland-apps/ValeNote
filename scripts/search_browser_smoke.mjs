@@ -68,8 +68,67 @@ try {
   await page.getByPlaceholder('Search note content...').press('Escape');
   await page.getByPlaceholder('Search...', { exact: true }).click();
   assert.equal(await page.getByPlaceholder('Search note content...').inputValue(), '');
+  await page.getByPlaceholder('Search note content...').press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+  // Dialog drafts must reset on reopen without an Effect-driven flash of old values.
+  await page.getByRole('button', { name: 'Create notebook', exact: true }).click();
+  let createDialog = page.getByRole('dialog', { name: 'Create New Notebook' });
+  await createDialog.getByRole('textbox', { name: /^Name/ }).fill('discarded draft');
+  await createDialog.getByLabel('Description', { exact: true }).fill('discarded description');
+  await createDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await createDialog.waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: 'Create notebook', exact: true }).click();
+  createDialog = page.getByRole('dialog', { name: 'Create New Notebook' });
+  assert.equal(await createDialog.getByRole('textbox', { name: /^Name/ }).inputValue(), '');
+  assert.equal(await createDialog.getByLabel('Description', { exact: true }).inputValue(), '');
+  await createDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await createDialog.waitFor({ state: 'hidden' });
+
+  // Breakpoint changes reset the sidebar, while manual toggles remain reversible.
+  await page.setViewportSize({ width: 600, height: 800 });
+  await page.getByRole('button', { name: 'Expand sidebar', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click();
+  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click();
+  await page.getByRole('button', { name: 'Expand sidebar', exact: true }).waitFor();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).waitFor({ state: 'visible' });
+
+  // Typing must not recreate CodeMirror, and Ctrl+S must see the latest draft.
+  await page.getByRole('tab').nth(0).click();
+  const editor = page.locator('.cm-content[contenteditable="true"]');
+  await editor.waitFor();
+  await editor.evaluate(element => { element.dataset.smokeInstance = 'original'; });
+  await editor.fill('# Browser heading\n\n## Second\n\nfixture');
+  await page.getByText('Unsaved', { exact: true }).waitFor();
+  assert.equal(await editor.getAttribute('data-smoke-instance'), 'original');
+  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click();
+  await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click();
+  assert.equal(await editor.getAttribute('data-smoke-instance'), 'original');
+  const saved = page.waitForResponse(response => response.request().method() === 'PUT' && response.url().endsWith('/api/v1/notes/renamed_book/result.md'));
+  await editor.press('Control+s');
+  const savedResponse = await saved;
+  assert.equal(savedResponse.status(), 200);
+  assert.equal((await savedResponse.json()).content, '# Browser heading\n\n## Second\n\nfixture');
+  await page.getByText('Unsaved', { exact: true }).waitFor({ state: 'hidden' });
+  await page.getByRole('tab').nth(1).click();
+  await page.getByRole('heading', { name: 'Browser heading', exact: true }).waitFor();
+  assert.deepEqual(await page.locator('[data-heading-index]').evaluateAll(elements => elements.map(element => element.getAttribute('data-heading-index'))), ['0', '1']);
+
+  // The refactored public page must also render through real unauthenticated routes.
+  const published = await page.request.put(base + '/api/v1/notebooks/renamed_book', {
+    headers: { Authorization: `Bearer ${token}` }, data: { is_public: true },
+  });
+  assert.equal(published.status(), 200);
+  const publicPage = await browser.newPage();
+  publicPage.on('pageerror', error => errors.push(error.message));
+  await publicPage.goto(base + '/public/renamed_book/result');
+  await publicPage.getByRole('heading', { name: 'Browser heading', exact: true }).waitFor();
+  assert.deepEqual(await publicPage.locator('[data-heading-index]').evaluateAll(elements => elements.map(element => element.getAttribute('data-heading-index'))), ['0', '1']);
+  await publicPage.close();
+
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ status: 'PASS', checks: ['real backend search result opens note', 'real Chromium UI: obsolete search cannot replace newest result', 'search failure distinguished from empty results', 'clear/tab/close/reopen', 'no page errors'] }));
+  console.log(JSON.stringify({ status: 'PASS', checks: ['real backend search result opens note', 'real Chromium UI: obsolete search cannot replace newest result', 'search failure distinguished from empty results', 'clear/tab/close/reopen', 'dialog drafts reset on reopen', 'responsive sidebar and reversible toggles', 'editor instance retained while typing; keyboard saves latest draft', 'stable per-document heading indices', 'real unauthenticated public note', 'no page errors'] }));
 } finally {
   await browser.close();
 }

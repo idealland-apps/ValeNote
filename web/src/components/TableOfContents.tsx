@@ -24,11 +24,9 @@ export default function TableOfContents({ containerRef, isPublic = false }: Prop
   const [headings, setHeadings] = useState<TocItem[]>([]);
   const [desktopExpanded, setDesktopExpanded] = useState(true);
 
-  useEffect(() => {
-    if (!isMobile) {
-      setDrawerOpen(false);
-    }
-  }, [isMobile]);
+  if (!isMobile && drawerOpen) {
+    setDrawerOpen(false);
+  }
 
   useEffect(() => {
     const container = containerRef.current;

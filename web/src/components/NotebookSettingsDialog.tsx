@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Switch, FormControlLabel, Box, Alert, Divider, Typography, IconButton, Tooltip } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
@@ -15,15 +15,17 @@ interface Props {
 
 export default function NotebookSettingsDialog({ open, onClose, notebook, onSave }: Props) {
   const { publicBasePath } = useSiteStore();
-  const [description, setDescription] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
+  const [description, setDescription] = useState(notebook?.description || '');
+  const [isPublic, setIsPublic] = useState(notebook?.is_public || false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
+  const [previousNotebook, setPreviousNotebook] = useState(notebook);
+  if (previousNotebook !== notebook) {
+    setPreviousNotebook(notebook);
     if (notebook) {
       setDescription(notebook.description || '');
       setIsPublic(notebook.is_public || false);
@@ -31,7 +33,7 @@ export default function NotebookSettingsDialog({ open, onClose, notebook, onSave
       setError('');
       setCopied(false);
     }
-  }, [notebook]);
+  }
 
   const handleCopyUrl = async () => {
     if (!notebook) return;

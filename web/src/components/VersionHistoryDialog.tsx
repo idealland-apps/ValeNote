@@ -26,9 +26,13 @@ interface Props {
   onRestore: () => void;
 }
 
-export default function VersionHistoryDialog({ open, onClose, notePath, onRestore }: Props) {
+export default function VersionHistoryDialog(props: Props) {
+  return <VersionHistoryForm key={JSON.stringify([props.open, props.notePath])} {...props} />;
+}
+
+function VersionHistoryForm({ open, onClose, notePath, onRestore }: Props) {
   const [versions, setVersions] = useState<Version[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(open && !!notePath);
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [restoring, setRestoring] = useState(false);
@@ -36,26 +40,22 @@ export default function VersionHistoryDialog({ open, onClose, notePath, onRestor
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
-    if (open && notePath) {
-      loadVersions();
-      setSelectedVersion(null);
-      setPreviewContent('');
+    if (!open || !notePath) return;
+    let active = true;
+    async function fetchVersions() {
+      try {
+        const { data } = await api.get<Version[]>(`/versions/${encodePath(notePath)}`);
+        if (active) setVersions(data || []);
+      } catch (err) {
+        console.error('Failed to load versions', err);
+        if (active) setError('Failed to load version history');
+      } finally {
+        if (active) setLoading(false);
+      }
     }
+    void fetchVersions();
+    return () => { active = false; };
   }, [open, notePath]);
-
-  const loadVersions = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data } = await api.get<Version[]>(`/versions/${encodePath(notePath)}`);
-      setVersions(data || []);
-    } catch (err) {
-      console.error('Failed to load versions', err);
-      setError('Failed to load version history');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadPreview = async (version: Version) => {
     setSelectedVersion(version);

@@ -9,15 +9,17 @@ interface RenameDialogProps {
   type: 'file' | 'folder';
 }
 
-export default function RenameDialog({ open, onClose, onConfirm, currentName, type }: RenameDialogProps) {
-  const [name, setName] = useState('');
+export default function RenameDialog(props: RenameDialogProps) {
+  return <RenameDialogForm key={JSON.stringify([props.open, props.currentName, props.type])} {...props} />;
+}
+
+function RenameDialogForm({ open, onClose, onConfirm, currentName, type }: RenameDialogProps) {
+  const [name, setName] = useState(currentName);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
-      setName(currentName);
-      setError('');
       setTimeout(() => {
         const input = inputRef.current;
         if (input) {
@@ -39,7 +41,7 @@ export default function RenameDialog({ open, onClose, onConfirm, currentName, ty
       setError('Name is required');
       return;
     }
-    if (/[\/\\:*?"<>|]/.test(trimmed)) {
+    if (/[/\\:*?"<>|]/.test(trimmed)) {
       setError('Invalid characters in name');
       return;
     }
