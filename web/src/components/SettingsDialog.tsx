@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, Tabs, Tab, Box, List, ListItem, ListItemText,
   ListItemSecondaryAction, Select, MenuItem, Slider, Typography, Divider,
-  TextField, Button, Alert, CircularProgress, Switch, Tooltip, Popover, Autocomplete, Chip
+  TextField, Button, Alert, CircularProgress, Switch, Tooltip, Popover, Autocomplete, Chip, IconButton
 } from '@mui/material';
-import { Colorize as ColorizeIcon } from '@mui/icons-material';
+import { Colorize as ColorizeIcon, Close as CloseIcon } from '@mui/icons-material';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { useSettingsStore, THEME_COLOR_OPTIONS } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
@@ -71,7 +71,7 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
 
   const showAutoSaveSuccess = useCallback(() => {
     setSuccess('Saved');
-    setTimeout(() => setSuccess(''), 2000);
+    setTimeout(() => setSuccess(''), 3000);
   }, []);
 
   const handleThemeChange = useCallback((mode: 'light' | 'dark' | 'system') => {
@@ -213,7 +213,16 @@ export default function SettingsDialog({ open, onClose, notebooks }: Props) {
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-        <DialogTitle>Settings</DialogTitle>
+        <DialogTitle sx={{ pr: 7 }}>
+          Settings
+          <IconButton
+            aria-label="Close settings"
+            onClick={onClose}
+            sx={{ position: 'absolute', right: 12, top: 12 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent sx={{ minHeight: 500 }}>
           {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
           {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}

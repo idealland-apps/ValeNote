@@ -117,7 +117,7 @@ export default function NoteEditor({ note, sidebarCollapsed, onExpandSidebar }: 
 
   const showSaveToast = (success: boolean, message: string) => {
     setSaveToast({ show: true, success, message });
-    setTimeout(() => setSaveToast(prev => ({ ...prev, show: false })), 2000);
+    setTimeout(() => setSaveToast(prev => ({ ...prev, show: false })), 3000);
   };
 
   const handleSave = useCallback(async () => {

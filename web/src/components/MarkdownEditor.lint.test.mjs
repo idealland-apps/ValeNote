@@ -251,6 +251,33 @@ test('authenticated images reset loading, ignore obsolete requests and recover a
   current.cleanup();
 });
 
+test('note save success feedback lasts three seconds', async () => {
+  const h = hooks();
+  const timers = [];
+  const store = { updateNote: async () => {}, forceUpdateNote() {}, loadNote() {}, setDirtyChecker() {}, clearDirtyChecker() {} };
+  const { default: Editor } = load('./NoteEditor.tsx', {
+    react: h.react, '@mui/material': presentation, '@mui/icons-material': presentation,
+    '../stores/noteStore': { useNoteStore: () => store, ConflictError: class extends Error {} },
+    './MarkdownEditor': {}, './MarkdownRenderer': {}, './VersionHistoryDialog': {},
+    './AttachmentManagerDialog': {}, './ExportDialog': {}, './TableOfContents': {},
+    '../utils/time': { formatTimestamp: value => value },
+  }, {
+    localStorage: { getItem: () => 'edit' },
+    window: { addEventListener() {}, removeEventListener() {} },
+    setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; },
+  });
+  const props = { note: { path: 'book/test.md', content: 'saved text' } };
+  let tree = h.render(Editor, props);
+  await nodes(tree, node => node.type === 'IconButton' && node.props.onClick?.constructor.name === 'AsyncFunction')[0].props.onClick();
+  tree = h.render(Editor, props);
+  assert.equal(nodes(tree, node => node.type === 'Box' && node.props.sx?.transform === 'scaleX(1)').length, 1);
+  assert.equal(timers.at(-1).delay, 3000);
+  timers.at(-1).callback();
+  tree = h.render(Editor, props);
+  assert.equal(nodes(tree, node => node.type === 'Box' && node.props.sx?.transform === 'scaleX(1)').length, 0);
+  h.cleanup();
+});
+
 test('note prop changes are reflected before effects and unchanged props preserve the draft', () => {
   const h = hooks();
   let checker;

@@ -8,8 +8,46 @@ import ts from 'typescript';
 const require = createRequire(import.meta.url);
 const presentation = new Proxy({}, { get: (_, name) => name });
 
+function settingsFixture(onClose, globals = {}) {
+  return mount('SettingsDialog', { open: true, onClose, notebooks: [] }, {
+    'react-colorful': { HexColorPicker: 'HexColorPicker', HexColorInput: 'HexColorInput' },
+    '../stores/settingsStore': { useSettingsStore: () => ({ themeMode: 'light', primaryColor: '#6782d2', setThemeMode() {} }), THEME_COLOR_OPTIONS: [] },
+    '../stores/authStore': { useAuthStore: selector => selector({ user: null }) },
+    '../stores/siteStore': { useSiteStore: {} },
+    '../utils/time': { setTimezone() {} },
+    '../services/api': { __esModule: true, default: { get: () => Promise.resolve({ data: {} }) } },
+    './AgentManagement': {}, './UserManagement': {}, './RemoteStorageDialog': {},
+  }, globals);
+}
+
+test('settings title exposes an accessible close button calling onClose', () => {
+  let closed = 0;
+  const dialog = settingsFixture(() => closed++);
+  const close = dialog.nodes('IconButton').find(node => node.props['aria-label'] === 'Close settings');
+  assert.ok(close, 'settings must have a close button even while loading');
+  assert.equal(close.props.sx.position, 'absolute');
+  close.props.onClick();
+  assert.equal(closed, 1);
+  dialog.unmount();
+});
+
+test('settings auto-save success feedback lasts three seconds', async () => {
+  const timers = [];
+  const dialog = settingsFixture(() => {}, { setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; } });
+  await dialog.settle();
+  dialog.nodes('Select')[0].props.onChange({ target: { value: 'dark' } });
+  await dialog.settle();
+  assert.equal(dialog.nodes('Alert').find(node => node.props.severity === 'success').props.children, 'Saved');
+  assert.equal(timers.at(-1).delay, 3000);
+  timers.at(-1).callback();
+  await dialog.settle();
+  assert.equal(dialog.nodes('Alert').filter(node => node.props.severity === 'success').length, 0);
+  dialog.unmount();
+});
+
+
 // Exercise the actual TSX with hook/presentation doubles, not a browser renderer.
-function mount(name, initialProps, imports = {}) {
+function mount(name, initialProps, imports = {}, globals = {}) {
   const instances = new Map();
   let current;
   let cursor;
@@ -62,6 +100,7 @@ function mount(name, initialProps, imports = {}) {
     clearTimeout() {},
     console: { error() {} },
     window: { location: { origin: 'https://example.test' } },
+    ...globals,
   });
   function cleanup(instance) { instance.slots.forEach(slot => slot.cleanup?.()); }
   function resolve(node, path, seen) {

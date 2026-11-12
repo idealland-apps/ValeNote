@@ -111,6 +111,18 @@ try {
   assert.equal(savedResponse.status(), 200);
   assert.equal((await savedResponse.json()).content, '# Browser heading\n\n## Second\n\nfixture');
   await page.getByText('Unsaved', { exact: true }).waitFor({ state: 'hidden' });
+  const saveToast = page.getByText('Saved', { exact: true });
+  await saveToast.waitFor({ state: 'visible' });
+  await page.waitForTimeout(2400);
+  assert.equal(await saveToast.isVisible(), true, 'Saved feedback must remain visible before three seconds');
+  await saveToast.waitFor({ state: 'hidden', timeout: 1500 });
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settingsDialog = page.getByRole('dialog', { name: /^Settings/ });
+  await settingsDialog.waitFor();
+  await settingsDialog.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await settingsDialog.waitFor({ state: 'hidden' });
+  assert.equal(await editor.getAttribute('data-smoke-instance'), 'original');
   await page.getByRole('tab').nth(1).click();
   await page.getByRole('heading', { name: 'Browser heading', exact: true }).waitFor();
   assert.deepEqual(await page.locator('[data-heading-index]').evaluateAll(elements => elements.map(element => element.getAttribute('data-heading-index'))), ['0', '1']);
@@ -128,7 +140,7 @@ try {
   await publicPage.close();
 
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ status: 'PASS', checks: ['real backend search result opens note', 'real Chromium UI: obsolete search cannot replace newest result', 'search failure distinguished from empty results', 'clear/tab/close/reopen', 'dialog drafts reset on reopen', 'responsive sidebar and reversible toggles', 'editor instance retained while typing; keyboard saves latest draft', 'stable per-document heading indices', 'real unauthenticated public note', 'no page errors'] }));
+  console.log(JSON.stringify({ status: 'PASS', checks: ['real backend search result opens note', 'real Chromium UI: obsolete search cannot replace newest result', 'search failure distinguished from empty results', 'clear/tab/close/reopen', 'dialog drafts reset on reopen', 'responsive sidebar and reversible toggles', 'editor instance retained while typing; keyboard saves latest draft', 'Saved feedback dismisses after three seconds', 'settings close button closes dialog without remounting editor', 'stable per-document heading indices', 'real unauthenticated public note', 'no page errors'] }));
 } finally {
   await browser.close();
 }
